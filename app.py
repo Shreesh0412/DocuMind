@@ -2,7 +2,7 @@
 import streamlit as st
 
 from src.pdf_processor import extract_pdf_pages
-from src.pdf
+from src.text_chunker import chunk_pages
 
 # Application configuration
 st.set_page_config(
@@ -57,9 +57,13 @@ if uploaded_files:
         page for page in all_pages
         if page["text"]
     ]
-
-    # Dashboard metrics
-    col1, col2, col3 = st.columns(3)
+    # Generate overlapping text chunks
+    all_chunks = chunk_pages(
+        all_pages,
+        chunk_size=1000,
+        overlap=150
+    )
+    col1, col2, col3, col4 = st.columns(4)
 
     col1.metric(
         "Documents uploaded",
@@ -72,8 +76,13 @@ if uploaded_files:
     )
 
     col3.metric(
-        "Pages with extracted text",
+        "Pages with text",
         len(text_pages)
+    )
+
+    col4.metric(
+        "Chunks generated",
+        len(all_chunks)
     )
 
     st.divider()
@@ -119,6 +128,48 @@ if uploaded_files:
             f"Source: {selected_page['source']} "
             f"| Page: {selected_page['page']}"
         )
+
+        # --------------------------------
+        # Chunk Preview
+        # --------------------------------
+
+        st.divider()
+
+        st.subheader("Text Chunk Preview")
+
+        if all_chunks:
+
+            selected_chunk_index = st.selectbox(
+                "Select a chunk",
+
+                options=range(len(all_chunks)),
+
+                format_func=lambda index: (
+                    f"Chunk {index + 1} - "
+                    f"{all_chunks[index]['source']} "
+                    f"(Page {all_chunks[index]['page']})"
+                )
+            )
+
+            selected_chunk = all_chunks[
+                selected_chunk_index
+            ]
+
+            st.write(
+                f"Chunk ID: {selected_chunk['chunk_id']}"
+            )
+
+            st.text_area(
+                "Chunk Content",
+                value=selected_chunk["text"],
+                height=250,
+                disabled=True
+            )
+
+        else:
+
+            st.warning("No text chunks were generated.")
+
 
 else:
 
