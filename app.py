@@ -2,7 +2,7 @@
 import streamlit as st
 
 from src.pdf_processor import extract_pdf_pages
-
+from src.pdf
 
 # Application configuration
 st.set_page_config(
