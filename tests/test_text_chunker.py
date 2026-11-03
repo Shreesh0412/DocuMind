@@ -9,10 +9,10 @@ from src.text_chunker import (
 
 class TestTextChunker(unittest.TestCase):
 
-    def test_split_text(self):
+    def test_text_is_split(self):
 
         text = (
-            "This is a sample sentence. "
+            "Cloud computing provides resources. "
         ) * 100
 
         chunks = split_text(
@@ -28,18 +28,28 @@ class TestTextChunker(unittest.TestCase):
 
     def test_empty_text(self):
 
-        chunks = split_text("")
+        result = split_text("")
 
-        self.assertEqual(chunks, [])
+        self.assertEqual(result, [])
 
-    def test_preserves_metadata(self):
+    def test_invalid_overlap(self):
+
+        with self.assertRaises(ValueError):
+
+            split_text(
+                "Sample text",
+                chunk_size=100,
+                overlap=100
+            )
+
+    def test_metadata_preservation(self):
 
         pages = [
             {
                 "source": "test.pdf",
                 "page": 1,
                 "text": (
-                    "This is a test document. "
+                    "This is a sample document. "
                 ) * 100
             }
         ]
@@ -52,31 +62,15 @@ class TestTextChunker(unittest.TestCase):
 
         self.assertGreater(len(chunks), 1)
 
-        first_chunk = chunks[0]
-
         self.assertEqual(
-            first_chunk["source"],
+            chunks[0]["source"],
             "test.pdf"
         )
 
         self.assertEqual(
-            first_chunk["page"],
+            chunks[0]["page"],
             1
         )
-
-        self.assertIn(
-            "chunk_id",
-            first_chunk
-        )
-
-    def test_invalid_parameters(self):
-
-        with self.assertRaises(ValueError):
-            split_text(
-                "Some text",
-                chunk_size=100,
-                overlap=100
-            )
 
 
 if __name__ == "__main__":

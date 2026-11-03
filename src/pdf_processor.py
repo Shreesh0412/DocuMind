@@ -7,9 +7,10 @@ def extract_pdf_pages(
     filename: str
 ) -> list[dict]:
     """
-    Extract text from every page of a PDF.
+    Extract text from each page of an uploaded PDF.
 
-    Returns a list containing:
+    Returns:
+        A list of dictionaries containing:
         - source: PDF filename
         - page: Page number
         - text: Extracted text
@@ -24,7 +25,6 @@ def extract_pdf_pages(
             filetype="pdf"
         ) as document:
 
-            # Check whether the PDF is password protected
             if document.needs_pass:
                 raise ValueError(
                     f"{filename} is password protected."
@@ -55,6 +55,6 @@ def extract_pdf_pages(
 
     except Exception as error:
         raise ValueError(
-            f"Unable to process {filename}: "
+            f"Could not process {filename}: "
             f"{type(error).__name__}"
         ) from error

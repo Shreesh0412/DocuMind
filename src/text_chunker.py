@@ -5,16 +5,10 @@ def split_text(
     overlap: int = 150
 ) -> list[str]:
     """
-    Split text into smaller overlapping chunks.
+    Divide text into smaller overlapping chunks.
 
-    Args:
-        text: Original extracted text.
-        chunk_size: Maximum approximate chunk size
-                    in characters.
-        overlap: Approximate overlapping characters.
-
-    Returns:
-        A list of text chunks.
+    chunk_size: Maximum approximate characters per chunk.
+    overlap: Approximate repeated characters between chunks.
     """
 
     if chunk_size <= 0:
@@ -24,8 +18,7 @@ def split_text(
 
     if overlap < 0 or overlap >= chunk_size:
         raise ValueError(
-            "Overlap must be non-negative and "
-            "smaller than chunk size."
+            "Overlap must be smaller than chunk size."
         )
 
     text = text.strip()
@@ -39,22 +32,20 @@ def split_text(
 
     while start < text_length:
 
-        target_end = min(
+        end = min(
             start + chunk_size,
             text_length
         )
 
-        end = target_end
-
-        # Avoid cutting text in the middle of a sentence
-        # or paragraph when a suitable boundary exists.
-        if target_end < text_length:
+        # Try to end at a sentence or paragraph boundary.
+        if end < text_length:
 
             minimum_boundary = (
                 start + int(chunk_size * 0.60)
             )
 
             separators = (
+                "\n\n",
                 "\n",
                 ". ",
                 "? ",
@@ -66,7 +57,7 @@ def split_text(
                 position = text.rfind(
                     separator,
                     start,
-                    target_end
+                    end
                 )
 
                 if position >= minimum_boundary:
@@ -75,12 +66,12 @@ def split_text(
                     break
 
             else:
-                # If no sentence boundary exists,
-                # try to split at a word boundary.
+
+                # Fallback: find a word boundary.
                 position = text.rfind(
                     " ",
                     start,
-                    target_end
+                    end
                 )
 
                 if position >= minimum_boundary:
@@ -94,36 +85,27 @@ def split_text(
         if end >= text_length:
             break
 
-        # Calculate the next starting point,
-        # retaining some previous text.
+        # Retain overlapping text.
         next_start = max(
             end - overlap,
             start + 1
         )
 
         # Avoid starting in the middle of a word.
-        candidate = next_start
-
         while (
             next_start < text_length
             and not text[next_start].isspace()
         ):
             next_start += 1
 
-        if next_start < text_length:
-
-            while (
-                next_start < text_length
-                and text[next_start].isspace()
-            ):
-                next_start += 1
-
-        else:
-            # Fallback for unusually long words.
-            next_start = candidate
+        while (
+            next_start < text_length
+            and text[next_start].isspace()
+        ):
+            next_start += 1
 
         if next_start <= start:
-            break
+            next_start = end
 
         start = next_start
 
@@ -138,12 +120,8 @@ def chunk_pages(
     """
     Convert extracted PDF pages into chunks.
 
-    Each chunk preserves:
-        - chunk_id
-        - source
-        - page
-        - chunk_index
-        - text
+    Every chunk preserves its original document
+    and page information.
     """
 
     all_chunks = []
@@ -175,11 +153,8 @@ def chunk_pages(
                 ),
 
                 "source": source,
-
                 "page": page_number,
-
                 "chunk_index": index,
-
                 "text": chunk_text
             }
 
