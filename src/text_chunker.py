@@ -131,6 +131,7 @@ def chunk_pages(
         source = page_data["source"]
         page_number = page_data["page"]
         text = page_data["text"]
+        document_id = page_data.get("document_id", source)
 
         if not text.strip():
             continue
@@ -151,7 +152,7 @@ def chunk_pages(
                     f"{source}::page-{page_number}"
                     f"::chunk-{index}"
                 ),
-
+                "document_id": document_id,
                 "source": source,
                 "page": page_number,
                 "chunk_index": index,

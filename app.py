@@ -1,4 +1,7 @@
 
+import hashlib
+from pathlib import Path
+
 import streamlit as st
 
 from src.pdf_processor import extract_pdf_pages
@@ -8,15 +11,67 @@ from src.vector_store import VectorStore
 from src.llm import generate_answer
 
 
-# --------------------------------------------------
+# ==================================================
 # 1. APPLICATION CONFIGURATION
-# --------------------------------------------------
+# ==================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+STORE_DIR = (
+    PROJECT_ROOT / "data" / "documind_store"
+)
 
 st.set_page_config(
     page_title="DocuMind",
     page_icon="📚",
     layout="wide"
 )
+
+
+# ==================================================
+# 2. LOAD OR INITIALIZE THE VECTOR STORE
+# ==================================================
+
+if "vector_store" not in st.session_state:
+
+    vector_store = VectorStore()
+
+    try:
+
+        loaded = vector_store.load(STORE_DIR)
+
+        if loaded:
+
+            st.session_state.storage_message = (
+                "Previously processed documents loaded successfully."
+            )
+
+        else:
+
+            st.session_state.storage_message = (
+                "No previously saved documents found."
+            )
+
+    except Exception as error:
+
+        st.session_state.storage_message = (
+            f"Could not load saved documents: {error}"
+        )
+
+    st.session_state.vector_store = vector_store
+
+
+if "chat_history" not in st.session_state:
+
+    st.session_state.chat_history = []
+
+
+store = st.session_state.vector_store
+
+
+# ==================================================
+# 3. MAIN INTERFACE
+# ==================================================
 
 st.title("📚 DocuMind")
 
@@ -26,189 +81,342 @@ st.subheader(
 
 st.write(
     """
-    Upload your PDF documents and ask questions
-    about their contents.
+    Upload your PDF documents, build your personal
+    knowledge base and ask questions about them.
 
-    DocuMind retrieves relevant information and
-    generates answers with document references.
+    Your processed document index is saved locally.
     """
+)
+
+st.caption(
+    "Local embeddings + FAISS retrieval + Gemini generation"
 )
 
 st.divider()
 
 
-# --------------------------------------------------
-# 2. SESSION STATE INITIALIZATION
-# --------------------------------------------------
-
-if "vector_store" not in st.session_state:
-    st.session_state.vector_store = None
-
-if "document_stats" not in st.session_state:
-    st.session_state.document_stats = {}
-
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-
-# --------------------------------------------------
-# 3. PDF UPLOAD
-# --------------------------------------------------
+# ==================================================
+# 4. DOCUMENT UPLOAD AND PROCESSING
+# ==================================================
 
 st.header("Upload Documents")
 
 uploaded_files = st.file_uploader(
-    "Choose PDF documents",
-
+    "Select PDF documents",
     type=["pdf"],
-
     accept_multiple_files=True
 )
 
 
-# --------------------------------------------------
-# 4. DOCUMENT PROCESSING
-# --------------------------------------------------
+if st.button(
+    "Process Selected Documents",
+    disabled=not uploaded_files
+):
 
-if uploaded_files:
+    pending_documents = []
 
-    st.info(
-        f"{len(uploaded_files)} document(s) selected."
+    skipped_count = 0
+
+    processing_errors = []
+
+    seen_in_batch = set()
+
+    # ----------------------------------------------
+    # A. EXTRACT PDF TEXT AND GENERATE CHUNKS
+    # ----------------------------------------------
+
+    with st.spinner("Processing uploaded PDFs..."):
+
+        for uploaded_file in uploaded_files:
+
+            pdf_bytes = uploaded_file.getvalue()
+
+            # Generate unique ID using file contents.
+            document_id = hashlib.sha256(
+                pdf_bytes
+            ).hexdigest()
+
+            # Skip documents already in the database.
+            if (
+                store.has_document(document_id)
+                or document_id in seen_in_batch
+            ):
+
+                skipped_count += 1
+                continue
+
+            seen_in_batch.add(document_id)
+
+            try:
+
+                pages = extract_pdf_pages(
+                    pdf_bytes,
+                    uploaded_file.name
+                )
+
+                # Attach document identity to every page.
+                for page in pages:
+
+                    page["document_id"] = document_id
+
+                # Generate text chunks.
+                document_chunks = chunk_pages(
+                    pages,
+                    chunk_size=1000,
+                    overlap=150
+                )
+
+                if not document_chunks:
+
+                    raise ValueError(
+                        "No selectable text found in this PDF."
+                    )
+
+                pending_documents.append({
+
+                    "document_id": document_id,
+
+                    "filename": uploaded_file.name,
+
+                    "file_size": len(pdf_bytes),
+
+                    "page_count": len(pages),
+
+                    "chunks": document_chunks
+
+                })
+
+            except Exception as error:
+
+                processing_errors.append(
+                    f"{uploaded_file.name}: {error}"
+                )
+
+    # ----------------------------------------------
+    # B. GENERATE EMBEDDINGS AND UPDATE FAISS
+    # ----------------------------------------------
+
+    total_new_chunks = sum(
+        len(document["chunks"])
+        for document in pending_documents
     )
 
-    if st.button("Process Documents"):
+    if pending_documents:
 
-        all_pages = []
-        processing_errors = []
+        try:
 
-        # Step 1: Extract PDF text.
-        with st.spinner("Extracting PDF text..."):
+            all_new_chunks = []
 
-            for uploaded_file in uploaded_files:
+            for document in pending_documents:
 
-                try:
+                all_new_chunks.extend(
+                    document["chunks"]
+                )
 
-                    pages = extract_pdf_pages(
-                        uploaded_file.getvalue(),
-                        uploaded_file.name
-                    )
-
-                    all_pages.extend(pages)
-
-                except ValueError as error:
-
-                    processing_errors.append(
-                        str(error)
-                    )
-
-        for error in processing_errors:
-            st.error(error)
-
-        text_pages = [
-            page for page in all_pages
-            if page["text"].strip()
-        ]
-
-        # Step 2: Generate text chunks.
-        all_chunks = chunk_pages(
-            text_pages,
-            chunk_size=1000,
-            overlap=150
-        )
-
-        if not all_chunks:
-
-            st.warning(
-                "No extractable text was found "
-                "in the uploaded PDFs."
-            )
-
-        else:
-
-            # Step 3: Generate embeddings.
             with st.spinner(
-                "Generating embeddings and building FAISS index..."
+                "Generating document embeddings..."
             ):
 
                 embeddings = embed_texts(
                     [
                         chunk["text"]
-                        for chunk in all_chunks
+                        for chunk in all_new_chunks
                     ]
                 )
 
-                # Step 4: Build vector index.
-                vector_store = VectorStore()
+            with st.spinner(
+                "Updating FAISS vector index..."
+            ):
 
-                vector_store.build(
-                    all_chunks,
+                store.add_chunks(
+                    all_new_chunks,
                     embeddings
                 )
 
-                # Store in Streamlit session.
-                st.session_state.vector_store = vector_store
+                # Register each processed document.
+                for document in pending_documents:
 
-                st.session_state.document_stats = {
-                    "documents": len(uploaded_files),
-                    "pages": len(all_pages),
-                    "text_pages": len(text_pages),
-                    "chunks": len(all_chunks)
-                }
+                    store.register_document(
 
-                # Reset old conversation on reprocessing.
-                st.session_state.chat_history = []
+                        document_id=document["document_id"],
+
+                        filename=document["filename"],
+
+                        page_count=document["page_count"],
+
+                        chunk_count=len(document["chunks"]),
+
+                        file_size=document["file_size"]
+                    )
+
+                # Save the complete updated store.
+                store.save(STORE_DIR)
+                st.session_state.storage_message = (
+                "Documents are saved successfully on local storage."
+                )
+
+            st.session_state.chat_history = []
 
             st.success(
-                "Documents processed successfully!"
+                f"Successfully processed "
+                f"{len(pending_documents)} document(s) "
+                f"and {total_new_chunks} new chunks."
             )
 
-            st.rerun()
+        except Exception as error:
+
+            st.error(
+                f"Unable to update document storage: {error}"
+            )
+
+    elif not processing_errors and skipped_count == 0:
+
+        st.info("No new documents to process.")
+
+    if skipped_count:
+
+        st.info(
+            f"Skipped {skipped_count} duplicate "
+            "document(s)."
+        )
+
+    for error in processing_errors:
+
+        st.error(error)
 
 
-# --------------------------------------------------
-# 5. DISPLAY DOCUMENT STATISTICS
-# --------------------------------------------------
+# ==================================================
+# 5. DOCUMENT MANAGEMENT SIDEBAR
+# ==================================================
 
-if st.session_state.vector_store is not None:
+with st.sidebar:
 
-    stats = st.session_state.document_stats
+    st.header("📁 My Documents")
+
+    documents = store.get_documents()
+
+    if not documents:
+
+        st.info("No processed documents yet.")
+
+    else:
+
+        st.caption(
+            f"{store.document_count()} document(s) stored"
+        )
+
+        for document in documents:
+
+            with st.container(border=True):
+
+                st.markdown(
+                    f"**{document['filename']}**"
+                )
+
+                st.caption(
+                    f"{document['page_count']} pages · "
+                    f"{document['chunk_count']} chunks"
+                )
+
+                st.caption(
+                    f"Added: {document['added_at'][:10]}"
+                )
+
+                if st.button(
+                    "Remove Document",
+                    key=f"remove_{document['document_id']}"
+                ):
+
+                    removed = store.remove_document(
+                        document["document_id"]
+                    )
+
+                    if removed:
+
+                        try:
+
+                            store.save(STORE_DIR)
+                            st.session_state.storage_message = (
+                            "Document removed and storage updated successfully."
+                        )
+                            st.session_state.chat_history = []
+
+                            st.success(
+                                "Document removed successfully."
+                            )
+
+                            st.rerun()
+
+                        except Exception as error:
+
+                            st.error(
+                                f"Could not save updated storage: {error}"
+                            )
+
+
+# ==================================================
+# 6. STORAGE STATUS AND DASHBOARD
+# ==================================================
+
+with st.expander("Storage information"):
+
+    st.write(
+        st.session_state.storage_message
+    )
+
+    st.write(
+        f"Storage location: `{STORE_DIR}`"
+    )
+
+    st.write(
+        f"Stored vectors: {store.count()}"
+    )
+
+    st.write(
+        f"Stored documents: {store.document_count()}"
+    )
+
+
+if store.count() > 0:
 
     st.divider()
 
-    st.header("Document Processing Dashboard")
+    st.header("Document Dashboard")
 
-    col1, col2, col3, col4 = st.columns(4)
+    documents = store.get_documents()
+
+    total_pages = sum(
+        document["page_count"]
+        for document in documents
+    )
+
+    col1, col2, col3 = st.columns(3)
 
     col1.metric(
         "Documents",
-        stats["documents"]
+        store.document_count()
     )
 
     col2.metric(
         "Total Pages",
-        stats["pages"]
+        total_pages
     )
 
     col3.metric(
-        "Pages with Text",
-        stats["text_pages"]
-    )
-
-    col4.metric(
         "Total Chunks",
-        stats["chunks"]
+        store.count()
     )
 
     st.success(
-        "Your documents are indexed and ready for questions."
+        "Your documents are indexed and ready."
     )
 
 
-# --------------------------------------------------
-# 6. QUESTION-ANSWERING INTERFACE
-# --------------------------------------------------
+# ==================================================
+# 7. QUESTION AND ANSWER
+# ==================================================
 
-if st.session_state.vector_store is not None:
+if store.count() > 0:
 
     st.divider()
 
@@ -220,8 +428,7 @@ if st.session_state.vector_store is not None:
             "Enter your question",
 
             placeholder=(
-                "Example: Explain virtualization "
-                "in cloud computing."
+                "Example: Explain virtualization."
             )
         )
 
@@ -241,7 +448,7 @@ if st.session_state.vector_store is not None:
 
             try:
 
-                # Step 1: Convert question into embedding.
+                # Generate question embedding.
                 with st.spinner(
                     "Understanding your question..."
                 ):
@@ -250,19 +457,17 @@ if st.session_state.vector_store is not None:
                         question
                     )
 
-                # Step 2: Retrieve relevant chunks.
+                # Search FAISS.
                 with st.spinner(
-                    "Searching your documents..."
+                    "Searching saved documents..."
                 ):
 
-                    retrieved_chunks = (
-                        st.session_state.vector_store.search(
-                            query_embedding,
-                            top_k=4
-                        )
+                    retrieved_chunks = store.search(
+                        query_embedding,
+                        top_k=4
                     )
 
-                # Step 3: Generate answer using Gemini.
+                # Ask Gemini.
                 with st.spinner(
                     "Gemini is generating your answer..."
                 ):
@@ -273,9 +478,13 @@ if st.session_state.vector_store is not None:
                     )
 
                 st.session_state.chat_history.append({
+
                     "question": question,
+
                     "answer": answer,
+
                     "sources": sources
+
                 })
 
             except Exception as error:
@@ -285,13 +494,11 @@ if st.session_state.vector_store is not None:
                 )
 
 
-# --------------------------------------------------
-# 7. DISPLAY ANSWERS AND SOURCE REFERENCES
-# --------------------------------------------------
+# ==================================================
+# 8. DISPLAY CHAT HISTORY
+# ==================================================
 
-for index, chat in enumerate(
-    st.session_state.chat_history
-):
+for chat in st.session_state.chat_history:
 
     st.divider()
 
@@ -301,7 +508,9 @@ for index, chat in enumerate(
 
     st.markdown("### DocuMind's Answer")
 
-    st.markdown(chat["answer"])
+    st.markdown(
+        chat["answer"]
+    )
 
     with st.expander(
         f"View Sources ({len(chat['sources'])})"
@@ -316,7 +525,7 @@ for index, chat in enumerate(
             )
 
             st.caption(
-                f"Cosine similarity: {source['score']:.3f}"
+                f"Similarity: {source['score']:.4f}"
             )
 
             st.write(
@@ -326,13 +535,12 @@ for index, chat in enumerate(
             st.divider()
 
 
-# --------------------------------------------------
-# 8. FOOTER
-# --------------------------------------------------
+# ==================================================
+# 9. FOOTER
+# ==================================================
 
 st.divider()
 
 st.caption(
-    "DocuMind | AI-Powered Document Intelligence "
-    "System | Built using Python, FAISS and Gemini"
+    "DocuMind | AI-Powered Document Intelligence System"
 )

@@ -1,21 +1,22 @@
-# Virtual environment
+# Python environment
 .venv/
-
-# Python cache
 __pycache__/
 *.pyc
 
-# Secrets
+# API secrets
 .env
+.env.*
 
-# Environment files
+!.env.example
+
+# Generated document storage
+data/documind_store/
+
+# Streamlit secrets
 .streamlit/secrets.toml
-
-# Local documents and generated files
-data/
-
-# macOS
-.DS_Store
 
 # Testing
 .pytest_cache/
+
+# macOS
+.DS_Store
