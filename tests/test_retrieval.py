@@ -1,10 +1,8 @@
-
 import unittest
 
 import numpy as np
 
 from src.vector_store import VectorStore
-
 
 class TestRetrieval(unittest.TestCase):
 
@@ -95,22 +93,9 @@ class TestRetrieval(unittest.TestCase):
         )
 
     def test_no_relevant_results(self):
-
-        query = np.array(
-            [[0.0, 1.0]],
-            dtype=np.float32
-        )
-
-        results = self.store.search(
-            query,
-            top_k=5,
-            min_score=0.95
-        )
-
-        self.assertEqual(
-            len(results),
-            1
-        )
+        query = np.array([[1.0, 1.0]], dtype=np.float32)
+        results = self.store.search(query, top_k=5, min_score=0.95)
+        self.assertEqual(results, [])
 
     def test_invalid_threshold(self):
 
@@ -127,6 +112,20 @@ class TestRetrieval(unittest.TestCase):
                 min_score=2.0
             )
 
+    def test_search_restricts_selected_documents(self):
+        query = np.array([[1.0, 0.0]], dtype=np.float32)
+        results = self.store.search(
+            query,
+            top_k=5,
+            document_ids={"doc2"},
+        )
+        self.assertTrue(results)
+        self.assertTrue(all(item["document_id"] == "doc2" for item in results))
+
+    def test_empty_document_selection_returns_no_results(self):
+        query = np.array([[1.0, 0.0]], dtype=np.float32)
+        results = self.store.search(query, top_k=5, document_ids=set())
+        self.assertEqual(results, [])
 
 if __name__ == "__main__":
     unittest.main()

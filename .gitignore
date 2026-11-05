@@ -1,22 +1,10 @@
-# Python environment
 .venv/
 __pycache__/
-*.pyc
-
-# API secrets
+*.py[cod]
 .env
 .env.*
-
 !.env.example
-
-# Generated document storage
-data/documind_store/
-
-# Streamlit secrets
 .streamlit/secrets.toml
-
-# Testing
+data/documind_store/
 .pytest_cache/
-
-# macOS
 .DS_Store

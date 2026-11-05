@@ -1,11 +1,9 @@
-
 import unittest
 
 from src.text_chunker import (
     split_text,
     chunk_pages
 )
-
 
 class TestTextChunker(unittest.TestCase):
 
@@ -71,7 +69,6 @@ class TestTextChunker(unittest.TestCase):
             chunks[0]["page"],
             1
         )
-
 
 if __name__ == "__main__":
     unittest.main()

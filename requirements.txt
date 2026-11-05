@@ -1,8 +1,7 @@
-
-streamlit
-pymupdf
-sentence-transformers
-faiss-cpu
-numpy
-google-genai
-python-dotenv
+streamlit>=1.50
+pymupdf>=1.24
+sentence-transformers>=3.0
+faiss-cpu>=1.8
+numpy>=1.26,<3
+google-genai>=1.0
+python-dotenv>=1.0

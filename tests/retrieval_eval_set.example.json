@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "id": "Q1",
+      "question": "What is the definition of virtualization?",
+      "expected_document": "Cloud_Computing.pdf",
+      "expected_pages": [12, 13],
+      "expected_keywords": ["virtual machine", "hypervisor"]
+    },
+    {
+      "id": "Q2",
+      "question": "What are the three cloud service models?",
+      "expected_document": "Cloud_Computing.pdf",
+      "expected_keywords": ["IaaS", "PaaS", "SaaS"]
+    }
+  ]
+}

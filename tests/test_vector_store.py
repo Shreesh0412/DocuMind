@@ -1,4 +1,3 @@
-
 import tempfile
 import unittest
 
@@ -6,14 +5,12 @@ import numpy as np
 
 from src.vector_store import VectorStore
 
-
 class TestPersistentVectorStore(unittest.TestCase):
 
     def create_sample_store(self):
 
         store = VectorStore()
 
-        # Sample document chunks.
         chunks = [
 
             {
@@ -34,7 +31,6 @@ class TestPersistentVectorStore(unittest.TestCase):
 
         ]
 
-        # Small sample embeddings.
         embeddings = np.array(
             [
                 [1.0, 0.0],
@@ -178,6 +174,15 @@ class TestPersistentVectorStore(unittest.TestCase):
         self.assertFalse(
             store.has_document("document_c")
         )
+    def test_copy_is_independent(self):
+        store = self.create_sample_store()
+        duplicate = store.copy()
+        duplicate.remove_document("document_a")
+
+        self.assertEqual(store.document_count(), 2)
+        self.assertEqual(store.count(), 2)
+        self.assertEqual(duplicate.document_count(), 1)
+        self.assertEqual(duplicate.count(), 1)
 
 
 if __name__ == "__main__":

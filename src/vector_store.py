@@ -1,170 +1,99 @@
-
 import json
 import os
-
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 import faiss
 import numpy as np
 
-
 class VectorStore:
-    """
-    Persistent FAISS vector store.
-
-    Responsibilities:
-    1. Store document embeddings.
-    2. Perform similarity searches.
-    3. Save and load the FAISS index.
-    4. Maintain document metadata.
-    5. Add and remove individual documents.
-    """
-
     SCHEMA_VERSION = 1
 
-    def __init__(
-        self,
-        embedding_model: str = (
-            "sentence-transformers/all-MiniLM-L6-v2"
-        )
-    ):
-
+    def __init__(self, embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.index = None
-
-        self.chunks = []
-
-        self.embeddings = np.empty(
-            (0, 0),
-            dtype=np.float32
-        )
-
-        self.documents = {}
-
+        self.chunks: list[dict] = []
+        self.embeddings = np.empty((0, 0), dtype=np.float32)
+        self.documents: dict[str, dict] = {}
         self.embedding_model = embedding_model
 
-    # ---------------------------------------------
-    # 1. BASIC DOCUMENT INFORMATION
-    # ---------------------------------------------
-
     def has_document(self, document_id: str) -> bool:
-
         return document_id in self.documents
 
     def get_documents(self) -> list[dict]:
-
         return sorted(
-            [
-                dict(document)
-                for document in self.documents.values()
-            ],
-            key=lambda document: document["filename"].lower()
+            (dict(document) for document in self.documents.values()),
+            key=lambda document: str(document.get("filename", "")).casefold(),
         )
 
     def count(self) -> int:
-
-        if self.index is None:
-            return 0
-
-        return self.index.ntotal
+        return 0 if self.index is None else int(self.index.ntotal)
 
     def document_count(self) -> int:
-
         return len(self.documents)
 
-    # ---------------------------------------------
-    # 2. ADD DOCUMENT CHUNKS AND EMBEDDINGS
-    # ---------------------------------------------
+    def copy(self) -> "VectorStore":
+        self._validate_consistency()
+        duplicate = VectorStore(self.embedding_model)
+        duplicate.index = (
+            faiss.clone_index(self.index)
+            if self.index is not None
+            else None
+        )
+        duplicate.chunks = [dict(chunk) for chunk in self.chunks]
+        duplicate.embeddings = self.embeddings.copy()
+        duplicate.documents = {
+            document_id: dict(document)
+            for document_id, document in self.documents.items()
+        }
+        return duplicate
 
-    def add_chunks(
-        self,
-        chunks: list[dict],
-        embeddings: np.ndarray
-    ):
-        """
-        Add new document chunks and their vectors
-        to the existing FAISS index.
-        """
+    def _validate_consistency(self) -> None:
+        vector_count = self.count()
+        if vector_count != len(self.chunks):
+            raise ValueError("FAISS index and chunk metadata counts do not match.")
+        if self.embeddings.ndim != 2 or self.embeddings.shape[0] != vector_count:
+            raise ValueError("Stored embeddings and FAISS index counts do not match.")
+        if vector_count and self.index.d != self.embeddings.shape[1]:
+            raise ValueError("Stored embedding dimensions do not match the FAISS index.")
 
+    def add_chunks(self, chunks: list[dict], embeddings: np.ndarray) -> None:
         if not chunks:
             raise ValueError("No chunks provided.")
 
-        vectors = np.array(
-            embeddings,
-            dtype=np.float32,
-            order="C",
-            copy=True
-        )
-
-        if vectors.ndim != 2:
-            raise ValueError(
-                "Embeddings must be a 2D array."
-            )
-
+        vectors = np.array(embeddings, dtype=np.float32, order="C", copy=True)
+        if vectors.ndim != 2 or vectors.shape[0] == 0 or vectors.shape[1] == 0:
+            raise ValueError("Embeddings must be a non-empty 2D array.")
         if len(chunks) != vectors.shape[0]:
-            raise ValueError(
-                "Number of chunks and embeddings "
-                "must match."
-            )
-
+            raise ValueError("Number of chunks and embeddings must match.")
         if not np.isfinite(vectors).all():
-            raise ValueError(
-                "Embeddings contain invalid values."
-            )
+            raise ValueError("Embeddings contain invalid values.")
+        if np.any(np.linalg.norm(vectors, axis=1) == 0):
+            raise ValueError("Zero-length embeddings cannot be indexed.")
 
-        norms = np.linalg.norm(vectors, axis=1)
-
-        if np.any(norms == 0):
-            raise ValueError(
-                "Zero-length embeddings cannot be indexed."
-            )
-
-        # Normalize vectors for cosine similarity.
         faiss.normalize_L2(vectors)
-
         dimension = vectors.shape[1]
 
-        # Create the index if this is the first document.
+        if self.index is not None and self.index.d != dimension:
+            raise ValueError("Embedding dimensions do not match the existing FAISS index.")
+        if self.embeddings.size and self.embeddings.shape[1] != dimension:
+            raise ValueError("Stored embedding dimensions do not match.")
+
         if self.index is None:
-
             new_index = faiss.IndexFlatIP(dimension)
-            new_index.add(vectors)
-
-            self.index = new_index
-
         else:
+            new_index = faiss.clone_index(self.index)
+        new_index.add(vectors)
 
-            # Check embedding dimensions.
-            if self.index.d != dimension:
-
-                raise ValueError(
-                    "Embedding dimensions do not match "
-                    "the existing FAISS index."
-                )
-
-            self.index.add(vectors)
-
-        # Preserve the embeddings separately.
-        if self.embeddings.size == 0:
-
-            self.embeddings = vectors.copy()
-
-        else:
-
-            self.embeddings = np.concatenate(
-                [self.embeddings, vectors],
-                axis=0
-            )
-
-        # Preserve the original chunk metadata.
-        self.chunks.extend(
-            dict(chunk) for chunk in chunks
+        combined = (
+            vectors.copy()
+            if self.embeddings.size == 0
+            else np.concatenate((self.embeddings, vectors), axis=0)
         )
+        new_chunks = self.chunks + [dict(chunk) for chunk in chunks]
 
-    # ---------------------------------------------
-    # 3. REGISTER A PROCESSED DOCUMENT
-    # ---------------------------------------------
-
+        self.index = new_index
+        self.embeddings = np.ascontiguousarray(combined, dtype=np.float32)
+        self.chunks = new_chunks
 
     def register_document(
         self,
@@ -174,472 +103,210 @@ class VectorStore:
         chunk_count: int,
         file_size: int,
         chunk_size: int = 1000,
-        overlap: int = 150
-    ):
-        """Register document processing information."""
-
+        overlap: int = 150,
+    ) -> None:
         if self.has_document(document_id):
-            raise ValueError(
-                "This document is already registered."
-            )
+            raise ValueError("This document is already registered.")
+        if not filename or page_count < 0 or chunk_count <= 0 or file_size < 0:
+            raise ValueError("Invalid document metadata.")
+        if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
+            raise ValueError("Invalid chunking configuration.")
 
         self.documents[document_id] = {
-
             "document_id": document_id,
-
             "filename": filename,
-
             "page_count": page_count,
-
             "chunk_count": chunk_count,
-
             "file_size": file_size,
-
             "chunk_size": chunk_size,
-
             "overlap": overlap,
-
-            "added_at": datetime.now(
-                timezone.utc
-            ).isoformat()
+            "added_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    # ---------------------------------------------
-    # 4. REMOVE A DOCUMENT
-    # ---------------------------------------------
-
-    def remove_document(
-        self,
-        document_id: str
-    ) -> bool:
-        """
-        Remove a document and all its associated vectors.
-
-        The remaining FAISS index is rebuilt.
-        """
-
+    def remove_document(self, document_id: str) -> bool:
         if not self.has_document(document_id):
             return False
 
-        # Find chunk positions belonging to other documents.
         keep_indices = [
-
             index
-
             for index, chunk in enumerate(self.chunks)
-
             if chunk.get("document_id") != document_id
         ]
+        new_chunks = [self.chunks[index] for index in keep_indices]
 
-        # Keep only the corresponding chunks.
-        self.chunks = [
-            self.chunks[index]
-            for index in keep_indices
-        ]
-
-        # Keep the matching embeddings.
         if keep_indices:
-
-            self.embeddings = self.embeddings[
-                keep_indices
-            ].copy()
-
-            # Rebuild the FAISS index.
-            dimension = self.embeddings.shape[1]
-
-            new_index = faiss.IndexFlatIP(
-                dimension
+            new_embeddings = np.ascontiguousarray(
+                self.embeddings[keep_indices], dtype=np.float32
             )
-
-            new_index.add(
-                self.embeddings
-            )
-
-            self.index = new_index
-
+            new_index = faiss.IndexFlatIP(new_embeddings.shape[1])
+            new_index.add(new_embeddings)
         else:
+            new_embeddings = np.empty((0, 0), dtype=np.float32)
+            new_index = None
 
-            # No documents remain.
-            self.embeddings = np.empty(
-                (0, 0),
-                dtype=np.float32
-            )
-
-            self.index = None
-
-        # Remove document metadata.
         del self.documents[document_id]
-
+        self.chunks = new_chunks
+        self.embeddings = new_embeddings
+        self.index = new_index
         return True
 
-    # ---------------------------------------------
-    # 5. SAVE EVERYTHING TO DISK
-    # ---------------------------------------------
-
-    def save(self, directory: str | Path):
-        """
-        Save FAISS index, embeddings and metadata.
-
-        The manifest is written last so that a
-        successful manifest indicates a completed save.
-        """
+    def save(self, directory: str | Path) -> None:
+        self._validate_consistency()
 
         directory = Path(directory)
-
-        directory.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        index_path = directory / "index.faiss"
-        embeddings_path = directory / "embeddings.npy"
-        chunks_path = directory / "chunks.json"
-        documents_path = directory / "documents.json"
-        manifest_path = directory / "manifest.json"
-
-        # Temporary file paths.
-        index_temp = directory / "index.faiss.tmp"
-        embeddings_temp = directory / "embeddings.npy.tmp"
-        chunks_temp = directory / "chunks.json.tmp"
-        documents_temp = directory / "documents.json.tmp"
-        manifest_temp = directory / "manifest.json.tmp"
-
-        # Save FAISS index.
-        if self.index is not None:
-
-            faiss.write_index(
-                self.index,
-                str(index_temp)
-            )
-
-        # Save embeddings.
-        with open(embeddings_temp, "wb") as file:
-
-            np.save(
-                file,
-                self.embeddings,
-                allow_pickle=False
-            )
-
-        # Save chunk metadata.
-        with open(chunks_temp, "w", encoding="utf-8") as file:
-
-            json.dump(
-                self.chunks,
-                file,
-                ensure_ascii=False,
-                indent=2
-            )
-
-        # Save registered documents.
-        with open(documents_temp, "w", encoding="utf-8") as file:
-
-            json.dump(
-                self.documents,
-                file,
-                ensure_ascii=False,
-                indent=2
-            )
-
-        # Create storage manifest.
-        manifest = {
-
-            "schema_version": self.SCHEMA_VERSION,
-
-            "embedding_model": self.embedding_model,
-
-            "vector_count": self.count(),
-
-            "chunk_count": len(self.chunks),
-
-            "document_count": len(self.documents),
-
-            "dimension": (
-                int(self.embeddings.shape[1])
-                if self.embeddings.ndim == 2
-                and self.embeddings.shape[0] > 0
-                else None
-            ),
-
-            "saved_at": datetime.now(
-                timezone.utc
-            ).isoformat()
+        directory.mkdir(parents=True, exist_ok=True)
+        paths = {
+            "index": directory / "index.faiss",
+            "embeddings": directory / "embeddings.npy",
+            "chunks": directory / "chunks.json",
+            "documents": directory / "documents.json",
+            "manifest": directory / "manifest.json",
+        }
+        temporary = {
+            name: path.with_name(path.name + ".tmp")
+            for name, path in paths.items()
         }
 
-        with open(manifest_temp, "w", encoding="utf-8") as file:
+        try:
+            if self.index is not None:
+                faiss.write_index(self.index, str(temporary["index"]))
 
-            json.dump(
-                manifest,
-                file,
-                indent=2
-            )
+            with open(temporary["embeddings"], "wb") as file:
+                np.save(file, self.embeddings, allow_pickle=False)
+            with open(temporary["chunks"], "w", encoding="utf-8") as file:
+                json.dump(self.chunks, file, ensure_ascii=False, indent=2)
+            with open(temporary["documents"], "w", encoding="utf-8") as file:
+                json.dump(self.documents, file, ensure_ascii=False, indent=2)
 
-        # Move completed temporary files into place.
-        if self.index is not None:
+            manifest = {
+                "schema_version": self.SCHEMA_VERSION,
+                "embedding_model": self.embedding_model,
+                "vector_count": self.count(),
+                "chunk_count": len(self.chunks),
+                "document_count": len(self.documents),
+                "dimension": int(self.embeddings.shape[1]) if self.count() else None,
+                "saved_at": datetime.now(timezone.utc).isoformat(),
+            }
+            with open(temporary["manifest"], "w", encoding="utf-8") as file:
+                json.dump(manifest, file, indent=2)
 
-            os.replace(index_temp, index_path)
+            if self.index is not None:
+                os.replace(temporary["index"], paths["index"])
+            else:
+                paths["index"].unlink(missing_ok=True)
+            for name in ("embeddings", "chunks", "documents", "manifest"):
+                os.replace(temporary[name], paths[name])
+        finally:
+            for path in temporary.values():
+                path.unlink(missing_ok=True)
 
-        else:
-
-            index_path.unlink(missing_ok=True)
-
-        os.replace(
-            embeddings_temp,
-            embeddings_path
-        )
-
-        os.replace(
-            chunks_temp,
-            chunks_path
-        )
-
-        os.replace(
-            documents_temp,
-            documents_path
-        )
-
-        # Write manifest last.
-        os.replace(
-            manifest_temp,
-            manifest_path
-        )
-
-    # ---------------------------------------------
-    # 6. LOAD EVERYTHING FROM DISK
-    # ---------------------------------------------
-
-    def load(
-        self,
-        directory: str | Path
-    ) -> bool:
-        """
-        Load previously saved data.
-
-        Returns:
-            True if a saved store was loaded.
-            False if no saved store exists.
-        """
-
+    def load(self, directory: str | Path) -> bool:
         directory = Path(directory)
-
         manifest_path = directory / "manifest.json"
-
         if not manifest_path.exists():
             return False
 
-        with open(
-            manifest_path,
-            "r",
-            encoding="utf-8"
-        ) as file:
-
+        with open(manifest_path, "r", encoding="utf-8") as file:
             manifest = json.load(file)
 
         if manifest.get("schema_version") != self.SCHEMA_VERSION:
-
-            raise ValueError(
-                "Unsupported vector store version."
-            )
-
+            raise ValueError("Unsupported vector store version.")
         if manifest.get("embedding_model") != self.embedding_model:
-
             raise ValueError(
                 "The saved store uses a different embedding model. "
                 "Rebuild the document index using the current model."
             )
 
-        # Load chunk metadata.
-        with open(
-            directory / "chunks.json",
-            "r",
-            encoding="utf-8"
-        ) as file:
-
+        with open(directory / "chunks.json", "r", encoding="utf-8") as file:
             loaded_chunks = json.load(file)
-
-        # Load document metadata.
-        with open(
-            directory / "documents.json",
-            "r",
-            encoding="utf-8"
-        ) as file:
-
+        with open(directory / "documents.json", "r", encoding="utf-8") as file:
             loaded_documents = json.load(file)
+        loaded_embeddings = np.load(directory / "embeddings.npy", allow_pickle=False)
 
-        # Load numerical embeddings.
-        loaded_embeddings = np.load(
-            directory / "embeddings.npy",
-            allow_pickle=False
-        )
-
-        expected_count = manifest["vector_count"]
-
-        if len(loaded_chunks) != expected_count:
-
-            raise ValueError(
-                "Chunk count does not match the saved manifest."
-            )
-
-        if loaded_embeddings.ndim != 2:
-
-            raise ValueError(
-                "Saved embeddings have an invalid shape."
-            )
-
-        if loaded_embeddings.shape[0] != expected_count:
-
-            raise ValueError(
-                "Embedding count does not match the manifest."
-            )
+        expected_vectors = int(manifest.get("vector_count", -1))
+        if expected_vectors < 0:
+            raise ValueError("The saved manifest has an invalid vector count.")
+        if len(loaded_chunks) != int(manifest.get("chunk_count", -1)):
+            raise ValueError("Chunk count does not match the saved manifest.")
+        if len(loaded_chunks) != expected_vectors:
+            raise ValueError("Chunk count does not match the vector count.")
+        if len(loaded_documents) != int(manifest.get("document_count", -1)):
+            raise ValueError("Document count does not match the saved manifest.")
+        if loaded_embeddings.ndim != 2 or loaded_embeddings.shape[0] != expected_vectors:
+            raise ValueError("Saved embeddings have an invalid shape or count.")
+        if not np.isfinite(loaded_embeddings).all():
+            raise ValueError("Saved embeddings contain invalid values.")
 
         loaded_index = None
-
-        if expected_count > 0:
-
+        if expected_vectors:
             index_path = directory / "index.faiss"
-
             if not index_path.exists():
-
-                raise FileNotFoundError(
-                    "Saved FAISS index is missing."
-                )
-
-            loaded_index = faiss.read_index(
-                str(index_path)
-            )
-
-            if loaded_index.ntotal != expected_count:
-
-                raise ValueError(
-                    "FAISS vector count does not match metadata."
-                )
-
+                raise FileNotFoundError("Saved FAISS index is missing.")
+            loaded_index = faiss.read_index(str(index_path))
+            if loaded_index.ntotal != expected_vectors:
+                raise ValueError("FAISS vector count does not match metadata.")
             if loaded_index.d != loaded_embeddings.shape[1]:
-
-                raise ValueError(
-                    "FAISS dimension does not match saved embeddings."
-                )
-
-            if not np.isfinite(loaded_embeddings).all():
-
-                raise ValueError(
-                    "Saved embeddings contain invalid values."
-                )
-
+                raise ValueError("FAISS dimension does not match saved embeddings.")
+            if manifest.get("dimension") != loaded_index.d:
+                raise ValueError("FAISS dimension does not match the saved manifest.")
         elif loaded_documents:
+            raise ValueError("Documents exist but the saved index is empty.")
 
-            raise ValueError(
-                "Documents exist but the saved index is empty."
-            )
-
-        # Update the current vector store only after validation.
         self.index = loaded_index
-
         self.chunks = loaded_chunks
-
-        self.embeddings = np.ascontiguousarray(
-            loaded_embeddings,
-            dtype=np.float32
-        )
-
+        self.embeddings = np.ascontiguousarray(loaded_embeddings, dtype=np.float32)
         self.documents = loaded_documents
-
+        self._validate_consistency()
         return True
-
-    # ---------------------------------------------
-    # 7. SEARCH THE VECTOR DATABASE
-    # ---------------------------------------------
-
 
     def search(
         self,
         query_embedding: np.ndarray,
         top_k: int = 4,
-        min_score: float | None = None
+        min_score: float | None = None,
+        document_ids: set[str] | None = None,
     ) -> list[dict]:
-        """
-        Retrieve relevant chunks using cosine similarity.
-
-        min_score:
-            Minimum similarity score required.
-            None means no threshold filtering.
-        """
-
-        if self.index is None:
-            raise RuntimeError(
-                "The FAISS index has not been built."
-            )
-
+        if self.index is None or self.index.ntotal == 0:
+            raise RuntimeError("The FAISS index has not been built.")
         if top_k <= 0:
-            raise ValueError(
-                "top_k must be greater than zero."
-            )
-
+            raise ValueError("top_k must be greater than zero.")
         if min_score is not None:
-
-            if not np.isfinite(min_score) or not -1 <= min_score <= 1:
-                raise ValueError(
-                    "min_score must be between -1 and 1."
-                )
+            if not np.isfinite(min_score) or not -1.0 <= min_score <= 1.0:
+                raise ValueError("min_score must be between -1 and 1.")
+        if document_ids is not None and not document_ids:
+            return []
 
         query_vector = np.ascontiguousarray(
-            query_embedding,
-            dtype=np.float32
+            query_embedding, dtype=np.float32
         ).reshape(1, -1)
-
         if query_vector.shape[1] != self.index.d:
-            raise ValueError(
-                "Query embedding dimension mismatch."
-            )
-
+            raise ValueError("Query embedding dimension does not match the FAISS index.")
         if not np.isfinite(query_vector).all():
-            raise ValueError(
-                "Query embedding contains invalid values."
-            )
-
+            raise ValueError("Query embedding contains invalid values.")
         if np.linalg.norm(query_vector) == 0:
-            raise ValueError(
-                "Query embedding cannot be a zero vector."
-            )
+            raise ValueError("Query embedding cannot be a zero vector.")
 
-        # Normalize query embedding.
         faiss.normalize_L2(query_vector)
-
-        # Retrieve candidates.
-        if min_score is not None:
-            search_k = self.index.ntotal
-        else:
-            search_k = min(
-                top_k,
-                self.index.ntotal
-            )
-
-        scores, indices = self.index.search(
-            query_vector,
-            search_k
+        search_k = (
+            self.index.ntotal
+            if min_score is not None or document_ids is not None
+            else min(top_k, self.index.ntotal)
         )
+        scores, indices = self.index.search(query_vector, search_k)
 
         results = []
-
-        for score, index in zip(
-            scores[0],
-            indices[0]
-        ):
-
+        for score, index in zip(scores[0], indices[0]):
             if index < 0:
                 continue
-
-            # Apply relevance threshold.
-            if min_score is not None and score < min_score:
+            chunk = self.chunks[int(index)]
+            if document_ids is not None and chunk.get("document_id") not in document_ids:
+                continue
+            if min_score is not None and float(score) < min_score:
                 continue
 
-            result = self.chunks[int(index)].copy()
-
+            result = chunk.copy()
             result["score"] = float(score)
-
             results.append(result)
-
             if len(results) >= top_k:
                 break
-
         return results
