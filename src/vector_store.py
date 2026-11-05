@@ -165,20 +165,20 @@ class VectorStore:
     # 3. REGISTER A PROCESSED DOCUMENT
     # ---------------------------------------------
 
+
     def register_document(
         self,
         document_id: str,
         filename: str,
         page_count: int,
         chunk_count: int,
-        file_size: int
+        file_size: int,
+        chunk_size: int = 1000,
+        overlap: int = 150
     ):
-        """
-        Save details about a processed PDF.
-        """
+        """Register document processing information."""
 
         if self.has_document(document_id):
-
             raise ValueError(
                 "This document is already registered."
             )
@@ -194,6 +194,10 @@ class VectorStore:
             "chunk_count": chunk_count,
 
             "file_size": file_size,
+
+            "chunk_size": chunk_size,
+
+            "overlap": overlap,
 
             "added_at": datetime.now(
                 timezone.utc
@@ -546,26 +550,37 @@ class VectorStore:
     # 7. SEARCH THE VECTOR DATABASE
     # ---------------------------------------------
 
+
     def search(
         self,
         query_embedding: np.ndarray,
-        top_k: int = 4
+        top_k: int = 4,
+        min_score: float | None = None
     ) -> list[dict]:
         """
-        Retrieve the most similar document chunks.
+        Retrieve relevant chunks using cosine similarity.
+
+        min_score:
+            Minimum similarity score required.
+            None means no threshold filtering.
         """
 
         if self.index is None:
-
             raise RuntimeError(
                 "The FAISS index has not been built."
             )
 
         if top_k <= 0:
-
             raise ValueError(
                 "top_k must be greater than zero."
             )
+
+        if min_score is not None:
+
+            if not np.isfinite(min_score) or not -1 <= min_score <= 1:
+                raise ValueError(
+                    "min_score must be between -1 and 1."
+                )
 
         query_vector = np.ascontiguousarray(
             query_embedding,
@@ -573,33 +588,35 @@ class VectorStore:
         ).reshape(1, -1)
 
         if query_vector.shape[1] != self.index.d:
-
             raise ValueError(
                 "Query embedding dimension mismatch."
             )
 
         if not np.isfinite(query_vector).all():
-
             raise ValueError(
                 "Query embedding contains invalid values."
             )
 
         if np.linalg.norm(query_vector) == 0:
-
             raise ValueError(
                 "Query embedding cannot be a zero vector."
             )
 
+        # Normalize query embedding.
         faiss.normalize_L2(query_vector)
 
-        k = min(
-            top_k,
-            self.index.ntotal
-        )
+        # Retrieve candidates.
+        if min_score is not None:
+            search_k = self.index.ntotal
+        else:
+            search_k = min(
+                top_k,
+                self.index.ntotal
+            )
 
         scores, indices = self.index.search(
             query_vector,
-            k
+            search_k
         )
 
         results = []
@@ -612,10 +629,17 @@ class VectorStore:
             if index < 0:
                 continue
 
+            # Apply relevance threshold.
+            if min_score is not None and score < min_score:
+                continue
+
             result = self.chunks[int(index)].copy()
 
             result["score"] = float(score)
 
             results.append(result)
+
+            if len(results) >= top_k:
+                break
 
         return results

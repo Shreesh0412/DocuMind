@@ -65,6 +65,51 @@ if "chat_history" not in st.session_state:
 
     st.session_state.chat_history = []
 
+# ==================================================
+# RETRIEVAL AND CHUNKING SETTINGS
+# ==================================================
+
+with st.sidebar:
+
+    st.header("⚙️ DocuMind Settings")
+
+    st.subheader("Document Processing")
+
+    chunk_size = st.number_input(
+        "Chunk Size (characters)",
+        min_value=300,
+        max_value=3000,
+        value=1000,
+        step=100
+    )
+
+    overlap = st.number_input(
+        "Chunk Overlap (characters)",
+        min_value=0,
+        max_value=299,
+        value=150,
+        step=25
+    )
+
+    st.divider()
+
+    st.subheader("Retrieval Settings")
+
+    top_k = st.slider(
+        "Number of Retrieved Chunks",
+        min_value=1,
+        max_value=10,
+        value=4
+    )
+
+    min_score = st.slider(
+        "Minimum Similarity Score",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.30,
+        step=0.05
+    )
+
 
 store = st.session_state.vector_store
 
@@ -159,12 +204,11 @@ if st.button(
 
                     page["document_id"] = document_id
 
-                # Generate text chunks.
-                document_chunks = chunk_pages(
-                    pages,
-                    chunk_size=1000,
-                    overlap=150
-                )
+                    document_chunks = chunk_pages(
+                        pages,
+                        chunk_size=int(chunk_size),
+                        overlap=int(overlap)
+                    )
 
                 if not document_chunks:
 
@@ -237,16 +281,13 @@ if st.button(
                 for document in pending_documents:
 
                     store.register_document(
-
                         document_id=document["document_id"],
-
                         filename=document["filename"],
-
                         page_count=document["page_count"],
-
                         chunk_count=len(document["chunks"]),
-
-                        file_size=document["file_size"]
+                        file_size=document["file_size"],
+                        chunk_size=int(chunk_size),
+                        overlap=int(overlap)
                     )
 
                 # Save the complete updated store.
@@ -318,6 +359,10 @@ with st.sidebar:
                     f"{document['chunk_count']} chunks"
                 )
 
+                st.caption(
+                    f"Chunk size: {document.get('chunk_size', 'Previous settings')} "
+                    f"| Overlap: {document.get('overlap', 'Previous settings')}"
+                )
                 st.caption(
                     f"Added: {document['added_at'][:10]}"
                 )
@@ -458,34 +503,50 @@ if store.count() > 0:
                     )
 
                 # Search FAISS.
-                with st.spinner(
-                    "Searching saved documents..."
-                ):
+
+                # Step 2: Retrieve relevant chunks.
+
+                with st.spinner("Searching documents..."):
 
                     retrieved_chunks = store.search(
                         query_embedding,
-                        top_k=4
+                        top_k=int(top_k),
+                        min_score=float(min_score)
                     )
 
-                # Ask Gemini.
-                with st.spinner(
-                    "Gemini is generating your answer..."
-                ):
 
-                    answer, sources = generate_answer(
-                        question,
-                        retrieved_chunks
+                # Step 3: Check retrieval results.
+
+                if not retrieved_chunks:
+
+                    st.warning(
+                        "No sufficiently relevant information was found. "
+                        "Try rephrasing your question or lowering "
+                        "the similarity threshold."
                     )
 
-                st.session_state.chat_history.append({
+                else:
 
-                    "question": question,
+                    # Step 4: Generate answer using Gemini.
 
-                    "answer": answer,
+                    with st.spinner(
+                        "Gemini is generating your answer..."
+                    ):
 
-                    "sources": sources
+                        answer, sources = generate_answer(
+                            question,
+                            retrieved_chunks
+                        )
 
-                })
+                    st.session_state.chat_history.append({
+
+                        "question": question,
+
+                        "answer": answer,
+
+                        "sources": sources
+
+                    })
 
             except Exception as error:
 
