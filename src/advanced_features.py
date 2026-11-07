@@ -7,37 +7,37 @@ MAX_MCQ_CONTEXT_CHUNKS = 40
 VALID_OPTION_KEYS = ("A", "B", "C", "D")
 
 
-def _mcq_response_schema(question_count: int) -> dict:
-    """Build the JSON schema required for a source-cited MCQ response."""
+def _mcq_response_json_schema(question_count: int) -> dict:
+    """Build a standard JSON Schema for a source-cited MCQ response."""
     return {
-        "type": "OBJECT",
+        "type": "object",
         "properties": {
             "questions": {
-                "type": "ARRAY",
+                "type": "array",
                 "minItems": 0,
                 "maxItems": question_count,
                 "items": {
-                    "type": "OBJECT",
+                    "type": "object",
                     "properties": {
-                        "question": {"type": "STRING"},
+                        "question": {"type": "string"},
                         "options": {
-                            "type": "OBJECT",
+                            "type": "object",
                             "properties": {
-                                key: {"type": "STRING"}
+                                key: {"type": "string"}
                                 for key in VALID_OPTION_KEYS
                             },
                             "required": list(VALID_OPTION_KEYS),
                             "additionalProperties": False,
                         },
                         "correct_answer": {
-                            "type": "STRING",
+                            "type": "string",
                             "enum": list(VALID_OPTION_KEYS),
                         },
-                        "explanation": {"type": "STRING"},
+                        "explanation": {"type": "string"},
                         "source_ids": {
-                            "type": "ARRAY",
+                            "type": "array",
                             "minItems": 1,
-                            "items": {"type": "STRING"},
+                            "items": {"type": "string"},
                         },
                     },
                     "required": [
@@ -110,7 +110,7 @@ def _build_context(
 def _call_gemini(
     prompt: str,
     max_output_tokens: int = 2048,
-    response_schema: dict | None = None,
+    response_json_schema: dict | None = None,
     system_instruction: str | None = None,
 ) -> str:
     from src.llm import generate_with_retry
@@ -118,7 +118,7 @@ def _call_gemini(
     return generate_with_retry(
         prompt,
         max_output_tokens=max_output_tokens,
-        response_schema=response_schema,
+        response_json_schema=response_json_schema,
         system_instruction=system_instruction,
     )
 
@@ -409,7 +409,7 @@ If the excerpts cannot support any reliable question, return an empty questions 
     generated = _call_gemini(
         prompt,
         max_output_tokens=8192,
-        response_schema=_mcq_response_schema(question_count),
+        response_json_schema=_mcq_response_json_schema(question_count),
         system_instruction=mcq_system_instruction,
     ).strip()
     if generated == "INSUFFICIENT_EVIDENCE":

@@ -38,7 +38,7 @@ def get_gemini_client():
 def generate_with_retry(
     prompt: str,
     max_output_tokens: int = 1200,
-    response_schema: dict | None = None,
+    response_json_schema: dict | None = None,
     system_instruction: str | None = None,
 ) -> str:
     client = get_gemini_client()
@@ -50,9 +50,9 @@ def generate_with_retry(
                 "temperature": 0.2,
                 "max_output_tokens": max_output_tokens,
             }
-            if response_schema is not None:
+            if response_json_schema is not None:
                 config_args["response_mime_type"] = "application/json"
-                config_args["response_schema"] = response_schema
+                config_args["response_json_schema"] = response_json_schema
 
             response = client.models.generate_content(
                 model=MODEL,
