@@ -495,12 +495,16 @@ with st.sidebar:
     )
 
     min_score = st.slider(
-        "Minimum similarity",
+        "Minimum semantic similarity",
         min_value=0.0,
         max_value=1.0,
         value=0.30,
         step=0.05,
         key="min_score_setting",
+        help=(
+            "Filters semantic-search candidates. Hybrid search can also "
+            "include strong keyword matches below this cosine-similarity value."
+        ),
     )
 
     st.caption(
@@ -1245,8 +1249,9 @@ if store.count() > 0:
                 with st.spinner("Searching your documents..."):
                     query_embedding = embed_query(prompt)
 
-                    retrieved_chunks = store.search(
+                    retrieved_chunks = store.search_hybrid(
                         query_embedding,
+                        query_text=prompt,
                         top_k=int(top_k),
                         min_score=float(min_score),
                         document_ids=set(selected_document_ids),

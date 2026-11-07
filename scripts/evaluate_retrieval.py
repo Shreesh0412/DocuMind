@@ -12,6 +12,7 @@ DEFAULT_STORE = PROJECT_ROOT / "data" / "documind_store"
 DEFAULT_DATASET = PROJECT_ROOT / "tests" / "retrieval_eval_set.json"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
+
 def result_matches_case(result: dict, case: dict) -> bool:
     expected_document = case.get("expected_document")
     expected_document_id = case.get("expected_document_id")
@@ -30,16 +31,20 @@ def result_matches_case(result: dict, case: dict) -> bool:
             return False
     return bool(expected_document or expected_document_id or expected_pages or expected_keywords)
 
+
 def evaluate_cases(
     store,
     cases: list[dict],
     top_k: int = 5,
     query_encoder: Callable[[str], object] | None = None,
+    mode: str = "semantic",
 ) -> dict:
     if not cases:
         raise ValueError("The evaluation dataset has no test cases.")
     if top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
+    if mode not in {"semantic", "hybrid"}:
+        raise ValueError("mode must be 'semantic' or 'hybrid'.")
     if query_encoder is None:
         from src.embeddings import embed_query
         query_encoder = embed_query
@@ -53,14 +58,44 @@ def evaluate_cases(
         if not question:
             raise ValueError(f"Evaluation case {case.get('id', '?')} has an empty question.")
 
-        results = store.search(query_encoder(question), top_k=top_k, min_score=None)
+        query_embedding = query_encoder(question)
+        if mode == "hybrid":
+            results = store.search_hybrid(
+                query_embedding,
+                query_text=question,
+                top_k=top_k,
+                min_score=None,
+            )
+        else:
+            results = store.search(
+                query_embedding,
+                top_k=top_k,
+                min_score=None,
+            )
+
         relevant_rank = next(
-            (rank for rank, result in enumerate(results, start=1) if result_matches_case(result, case)),
+            (
+                rank
+                for rank, result in enumerate(results, start=1)
+                if result_matches_case(result, case)
+            ),
             None,
         )
         hit = relevant_rank is not None
         hits += int(hit)
         reciprocal_ranks.append(1.0 / relevant_rank if hit else 0.0)
+
+        retrieved = []
+        for item in results:
+            entry = {
+                "source": item.get("source"),
+                "page": item.get("page"),
+                "score": float(item.get("score", 0.0)),
+            }
+            for field in ("semantic_score", "bm25_score", "hybrid_score", "semantic_rank", "keyword_rank"):
+                if field in item:
+                    entry[field] = item[field]
+            retrieved.append(entry)
 
         rows.append(
             {
@@ -68,19 +103,13 @@ def evaluate_cases(
                 "question": question,
                 "hit_at_k": hit,
                 "first_relevant_rank": relevant_rank,
-                "retrieved": [
-                    {
-                        "source": item.get("source"),
-                        "page": item.get("page"),
-                        "score": float(item.get("score", 0.0)),
-                    }
-                    for item in results
-                ],
+                "retrieved": retrieved,
             }
         )
 
     total = len(cases)
     return {
+        "mode": mode,
         "total_cases": total,
         "top_k": top_k,
         "hits": hits,
@@ -89,13 +118,20 @@ def evaluate_cases(
         "results": rows,
     }
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Evaluate DocuMind retrieval against a labelled test set."
+        description="Evaluate DocuMind semantic or hybrid retrieval against a labelled test set."
     )
     parser.add_argument("--store", type=Path, default=DEFAULT_STORE)
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--mode",
+        choices=("semantic", "hybrid"),
+        default="semantic",
+        help="semantic keeps the old FAISS-only baseline; hybrid combines FAISS and BM25 with RRF.",
+    )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -108,7 +144,12 @@ def main() -> None:
     if not store.load(args.store):
         raise SystemExit(f"No saved DocuMind index found at: {args.store}")
 
-    report = evaluate_cases(store, dataset["cases"], top_k=args.top_k)
+    report = evaluate_cases(
+        store,
+        dataset["cases"],
+        top_k=args.top_k,
+        mode=args.mode,
+    )
     rendered = json.dumps(report, indent=2, ensure_ascii=False)
     print(rendered)
 
@@ -116,6 +157,7 @@ def main() -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered, encoding="utf-8")
         print(f"\nSaved evaluation report to: {args.output}")
+
 
 if __name__ == "__main__":
     main()

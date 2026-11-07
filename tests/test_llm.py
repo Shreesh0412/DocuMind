@@ -92,6 +92,62 @@ class TestGeminiRequestConfiguration(unittest.TestCase):
             3200,
         )
 
+    def test_structured_json_output_configuration(self):
+        class FakeModels:
+            def generate_content(self, **kwargs):
+                self.kwargs = kwargs
+                return type("Response", (), {"text": '{"questions": []}'})()
+
+        class FakeClient:
+            def __init__(self):
+                self.models = FakeModels()
+
+        schema = {
+            "type": "object",
+            "properties": {"questions": {"type": "array"}},
+            "additionalProperties": False,
+            "required": ["questions"],
+        }
+        client = FakeClient()
+        with patch("src.llm.get_gemini_client", return_value=client):
+            result = generate_with_retry(
+                "test prompt",
+                max_output_tokens=8192,
+                response_json_schema=schema,
+                system_instruction="Return JSON only.",
+            )
+
+        config = client.models.kwargs["config"]
+        self.assertEqual(result, '{"questions": []}')
+        self.assertEqual(config.response_mime_type, "application/json")
+        self.assertEqual(config.response_json_schema, schema)
+        config_payload = config.model_dump(by_alias=True, exclude_none=True)
+        self.assertIn("responseJsonSchema", config_payload)
+        self.assertNotIn("responseSchema", config_payload)
+        self.assertEqual(config.system_instruction, "Return JSON only.")
+
+    def test_rejects_response_stopped_by_output_token_limit(self):
+        class FakeModels:
+            def generate_content(self, **kwargs):
+                candidate = type(
+                    "Candidate",
+                    (),
+                    {"finish_reason": "MAX_TOKENS"},
+                )()
+                return type(
+                    "Response",
+                    (),
+                    {"text": '{"questions": [', "candidates": [candidate]},
+                )()
+
+        class FakeClient:
+            def __init__(self):
+                self.models = FakeModels()
+
+        with patch("src.llm.get_gemini_client", return_value=FakeClient()):
+            with self.assertRaisesRegex(RuntimeError, "output-token limit"):
+                generate_with_retry("test prompt", max_output_tokens=100)
+
 
 if __name__ == "__main__":
     unittest.main()

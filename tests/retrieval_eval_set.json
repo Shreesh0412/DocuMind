@@ -1,0 +1,284 @@
+{
+  "cases": [
+    {
+      "id": "BYOP_Q01",
+      "question": "What is the main objective of the Build Your Own Project assignment?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        1
+      ],
+      "expected_keywords": [
+        "real-world context",
+        "technical solution"
+      ]
+    },
+    {
+      "id": "BYOP_Q02",
+      "question": "What happens if a submitted project is irrelevant to the course?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        1
+      ],
+      "expected_keywords": [
+        "rejected",
+        "0 marks"
+      ]
+    },
+    {
+      "id": "BYOP_Q03",
+      "question": "What is the minimum number of major functional modules required in a project?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        2
+      ],
+      "expected_keywords": [
+        "Three major functional modules"
+      ]
+    },
+    {
+      "id": "BYOP_Q04",
+      "question": "How many non-functional requirements must a project specify at minimum?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        2
+      ],
+      "expected_keywords": [
+        "at least four",
+        "non-functional requirements"
+      ]
+    },
+    {
+      "id": "BYOP_Q05",
+      "question": "Which technical qualities are expected in the design and implementation of the project?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        3
+      ],
+      "expected_keywords": [
+        "architectural design",
+        "modular and clean implementation",
+        "validation and error handling"
+      ]
+    },
+    {
+      "id": "BYOP_Q06",
+      "question": "What minimum code structure is expected when a project involves coding or implementation?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        3
+      ],
+      "expected_keywords": [
+        "5-10 meaningful modules/classes/files",
+        "unit tests"
+      ]
+    },
+    {
+      "id": "BYOP_Q07",
+      "question": "Which design artefacts must be included in the project documentation?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        4
+      ],
+      "expected_keywords": [
+        "Problem Statement",
+        "System Architecture Diagram",
+        "Workflow Diagram"
+      ]
+    },
+    {
+      "id": "BYOP_Q08",
+      "question": "What additional documentation is required for a computation-heavy or machine-learning-related project?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        4
+      ],
+      "expected_keywords": [
+        "Dataset description",
+        "Model selection rationale",
+        "Evaluation methodology"
+      ]
+    },
+    {
+      "id": "BYOP_Q09",
+      "question": "What information must be included in the GitHub repository's README.md file?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        5
+      ],
+      "expected_keywords": [
+        "Project title",
+        "installation",
+        "Instructions for testing"
+      ]
+    },
+    {
+      "id": "BYOP_Q10",
+      "question": "What information must the statement.md file contain?",
+      "expected_document": "BuildYourOwnProjectVITyarthi.pdf",
+      "expected_pages": [
+        5
+      ],
+      "expected_keywords": [
+        "Problem statement",
+        "Scope of the project",
+        "Target users",
+        "High-level features"
+      ]
+    },
+    {
+      "id": "EMS_Q11",
+      "question": "What type of application is the Employee Management System, and what problem does it address?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        2
+      ],
+      "expected_keywords": [
+        "command-line",
+        "employee information",
+        "manual or file-based"
+      ]
+    },
+    {
+      "id": "EMS_Q12",
+      "question": "Which employee details does the Employee Management System maintain?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        2
+      ],
+      "expected_keywords": [
+        "employee ID",
+        "salary",
+        "joining date",
+        "department"
+      ]
+    },
+    {
+      "id": "EMS_Q13",
+      "question": "Which technologies are used to build the Employee Management System?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        2
+      ],
+      "expected_keywords": [
+        "Java 17",
+        "JDBC",
+        "SQLite"
+      ]
+    },
+    {
+      "id": "EMS_Q14",
+      "question": "What employee-management operations can a user perform in the system?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        4,
+        16
+      ],
+      "expected_keywords": [
+        "Add a new employee",
+        "Search an employee",
+        "Update existing employee details",
+        "Delete an employee",
+        "adding",
+        "searching",
+        "updating",
+        "deleting"
+      ]
+    },
+    {
+      "id": "EMS_Q15",
+      "question": "Which salary statistics can the Employee Management System calculate?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        4
+      ],
+      "expected_keywords": [
+        "average salary",
+        "highest salary",
+        "lowest salary",
+        "department-wise average salary"
+      ]
+    },
+    {
+      "id": "EMS_Q16",
+      "question": "What non-functional requirements are specified for the Employee Management System?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        5
+      ],
+      "expected_keywords": [
+        "Performance",
+        "Reliability",
+        "Usability",
+        "Maintainability",
+        "Resource Efficiency"
+      ]
+    },
+    {
+      "id": "EMS_Q17",
+      "question": "What are the responsibilities of Main.java, the manager classes, and Database.java in the system architecture?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        6
+      ],
+      "expected_keywords": [
+        "Main.java",
+        "EmployeeManager.java",
+        "DepartmentManager.java",
+        "Database.java"
+      ]
+    },
+    {
+      "id": "EMS_Q18",
+      "question": "How are departments and employees related in the database schema?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        9
+      ],
+      "expected_keywords": [
+        "dept_id",
+        "foreign key",
+        "one-to-many"
+      ]
+    },
+    {
+      "id": "EMS_Q19",
+      "question": "Why were SQLite and JDBC selected for the Employee Management System?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        10
+      ],
+      "expected_keywords": [
+        "lightweight persistent relational storage",
+        "JDBC",
+        "separate database server"
+      ]
+    },
+    {
+      "id": "EMS_Q20",
+      "question": "Which input-validation checks are described for the Employee Management System?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        11
+      ],
+      "expected_keywords": [
+        "empty required fields",
+        "non-negative salary",
+        "duplicate employee IDs",
+        "missing departments"
+      ]
+    },
+    {
+      "id": "EMS_Q21",
+      "question": "Which employee search options and department-based viewing feature are listed under Employee Management?",
+      "expected_document": "Report.pdf",
+      "expected_pages": [
+        4
+      ],
+      "expected_keywords": [
+        "Search an employee by Employee ID",
+        "Search employees by name",
+        "View employees belonging to a selected department"
+      ]
+    }
+  ]
+}

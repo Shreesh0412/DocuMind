@@ -1,5 +1,8 @@
 import json
+import math
 import os
+import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,6 +18,7 @@ class VectorStore:
         self.embeddings = np.empty((0, 0), dtype=np.float32)
         self.documents: dict[str, dict] = {}
         self.embedding_model = embedding_model
+        self._bm25_cache = None
 
     def has_document(self, document_id: str) -> bool:
         return document_id in self.documents
@@ -94,6 +98,7 @@ class VectorStore:
         self.index = new_index
         self.embeddings = np.ascontiguousarray(combined, dtype=np.float32)
         self.chunks = new_chunks
+        self._invalidate_bm25_cache()
 
     def register_document(
         self,
@@ -148,6 +153,7 @@ class VectorStore:
         self.chunks = new_chunks
         self.embeddings = new_embeddings
         self.index = new_index
+        self._invalidate_bm25_cache()
         return True
 
     def save(self, directory: str | Path) -> None:
@@ -256,6 +262,7 @@ class VectorStore:
         self.chunks = loaded_chunks
         self.embeddings = np.ascontiguousarray(loaded_embeddings, dtype=np.float32)
         self.documents = loaded_documents
+        self._invalidate_bm25_cache()
         self._validate_consistency()
         return True
 
@@ -310,3 +317,245 @@ class VectorStore:
             if len(results) >= top_k:
                 break
         return results
+
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        """Normalize text into useful lexical tokens for BM25."""
+        if not isinstance(text, str) or not text.strip():
+            return []
+
+        # Split identifiers such as EmployeeManager before punctuation removal.
+        text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+        tokens = re.findall(r"[a-z0-9]+", text.casefold())
+        stop_words = {
+            "a", "an", "and", "are", "as", "at", "be", "by", "can",
+            "could", "did", "do", "does", "for", "from", "how", "i",
+            "in", "into", "is", "it", "its", "may", "of", "on", "or",
+            "our", "should", "that", "the", "their", "them", "there",
+            "these", "this", "those", "to", "user", "was", "were",
+            "what", "when", "where", "which", "who", "why", "will",
+            "with", "would", "you", "your",
+        }
+        return [token for token in tokens if token not in stop_words]
+
+    def _invalidate_bm25_cache(self) -> None:
+        self._bm25_cache = None
+
+    def _get_bm25_cache(self) -> tuple[list[Counter], list[int]]:
+        """Build the lexical term-frequency cache lazily from stored chunks."""
+        if self._bm25_cache is None:
+            term_frequencies = [
+                Counter(self._tokenize(str(chunk.get("text", ""))))
+                for chunk in self.chunks
+            ]
+            document_lengths = [sum(frequencies.values()) for frequencies in term_frequencies]
+            self._bm25_cache = (term_frequencies, document_lengths)
+        return self._bm25_cache
+
+    def _bm25_rank(
+        self,
+        query_tokens: list[str],
+        eligible_indices: list[int],
+        candidate_limit: int,
+        k1: float = 1.5,
+        b: float = 0.75,
+    ) -> list[tuple[int, float]]:
+        """Return (chunk index, BM25 score), highest score first."""
+        if not query_tokens or not eligible_indices or candidate_limit <= 0:
+            return []
+
+        term_frequencies, document_lengths = self._get_bm25_cache()
+        corpus_size = len(eligible_indices)
+        average_length = (
+            sum(document_lengths[index] for index in eligible_indices) / corpus_size
+        ) or 1.0
+
+        document_frequency = Counter()
+        for index in eligible_indices:
+            document_frequency.update(term_frequencies[index].keys())
+
+        scores: list[tuple[int, float]] = []
+        for index in eligible_indices:
+            frequencies = term_frequencies[index]
+            length = document_lengths[index]
+            score = 0.0
+
+            for term in set(query_tokens):
+                frequency = frequencies.get(term, 0)
+                if frequency == 0:
+                    continue
+
+                df = document_frequency[term]
+                inverse_document_frequency = math.log(
+                    1.0 + (corpus_size - df + 0.5) / (df + 0.5)
+                )
+                denominator = frequency + k1 * (
+                    1.0 - b + b * length / average_length
+                )
+                score += inverse_document_frequency * (
+                    frequency * (k1 + 1.0) / denominator
+                )
+
+            if score > 0.0:
+                scores.append((index, float(score)))
+
+        scores.sort(key=lambda item: (-item[1], item[0]))
+        return scores[:candidate_limit]
+
+    def search_hybrid(
+        self,
+        query_embedding: np.ndarray,
+        query_text: str,
+        top_k: int = 4,
+        min_score: float | None = None,
+        document_ids: set[str] | None = None,
+        semantic_weight: float = 1.0,
+        keyword_weight: float = 1.0,
+        rrf_k: int = 60,
+        candidate_k: int | None = None,
+    ) -> list[dict]:
+        """Search with FAISS semantic similarity and BM25 keyword matching.
+
+        The two ranked lists are combined with Reciprocal Rank Fusion (RRF).
+        ``score`` remains the cosine-similarity value for compatibility with
+        existing answer/citation code; ``hybrid_score`` is the fused rank score.
+
+        ``min_score`` filters semantic candidates only. Lexical matches can
+        still enter the candidate pool, which is the main benefit of hybrid
+        retrieval when an exact term is not represented strongly by embeddings.
+        """
+        if not isinstance(query_text, str) or not query_text.strip():
+            raise ValueError("Search query text cannot be empty.")
+        if self.index is None or self.index.ntotal == 0:
+            raise RuntimeError("The FAISS index has not been built.")
+        if top_k <= 0:
+            raise ValueError("top_k must be greater than zero.")
+        if min_score is not None and (
+            not np.isfinite(min_score) or not -1.0 <= min_score <= 1.0
+        ):
+            raise ValueError("min_score must be between -1 and 1.")
+        if document_ids is not None and not document_ids:
+            return []
+        if (
+            not np.isfinite(semantic_weight)
+            or not np.isfinite(keyword_weight)
+            or semantic_weight < 0
+            or keyword_weight < 0
+            or semantic_weight + keyword_weight <= 0
+        ):
+            raise ValueError("Hybrid weights must be non-negative and not both zero.")
+        if rrf_k <= 0:
+            raise ValueError("rrf_k must be greater than zero.")
+        if candidate_k is not None and candidate_k <= 0:
+            raise ValueError("candidate_k must be greater than zero.")
+
+        query_vector = np.ascontiguousarray(
+            query_embedding, dtype=np.float32
+        ).reshape(1, -1)
+        if query_vector.shape[1] != self.index.d:
+            raise ValueError("Query embedding dimension does not match the FAISS index.")
+        if not np.isfinite(query_vector).all():
+            raise ValueError("Query embedding contains invalid values.")
+        if np.linalg.norm(query_vector) == 0:
+            raise ValueError("Query embedding cannot be a zero vector.")
+        faiss.normalize_L2(query_vector)
+
+        eligible_indices = [
+            index
+            for index, chunk in enumerate(self.chunks)
+            if document_ids is None or chunk.get("document_id") in document_ids
+        ]
+        if not eligible_indices:
+            return []
+
+        limit = min(
+            len(eligible_indices),
+            candidate_k if candidate_k is not None else max(20, top_k * 4),
+        )
+
+        # Semantic ranking over the selected-document subset.
+        semantic_values = self.embeddings[eligible_indices] @ query_vector[0]
+        semantic_pairs = []
+        for index, value in zip(eligible_indices, semantic_values):
+            score = float(value)
+            if min_score is None or score >= min_score:
+                semantic_pairs.append((index, score))
+        semantic_pairs.sort(key=lambda item: (-item[1], item[0]))
+        semantic_pairs = semantic_pairs[:limit]
+        semantic_ranks = {
+            index: rank for rank, (index, _) in enumerate(semantic_pairs, start=1)
+        }
+        semantic_score_map = {
+            index: score for index, score in zip(eligible_indices, semantic_values)
+        }
+
+        # BM25 ranking uses the same selected-document subset.
+        query_tokens = self._tokenize(query_text)
+        keyword_pairs = self._bm25_rank(
+            query_tokens,
+            eligible_indices,
+            candidate_limit=limit,
+        )
+        keyword_ranks = {
+            index: rank for rank, (index, _) in enumerate(keyword_pairs, start=1)
+        }
+        keyword_score_map = dict(keyword_pairs)
+
+        candidate_indices = set(semantic_ranks) | set(keyword_ranks)
+        if not candidate_indices:
+            return []
+
+        fused = []
+        for index in candidate_indices:
+            semantic_rank = semantic_ranks.get(index)
+            keyword_rank = keyword_ranks.get(index)
+            hybrid_score = 0.0
+            if semantic_rank is not None:
+                hybrid_score += semantic_weight / (rrf_k + semantic_rank)
+            if keyword_rank is not None:
+                hybrid_score += keyword_weight / (rrf_k + keyword_rank)
+
+            fused.append(
+                (
+                    index,
+                    hybrid_score,
+                    semantic_score_map.get(index, 0.0),
+                    keyword_score_map.get(index, 0.0),
+                    semantic_rank,
+                    keyword_rank,
+                )
+            )
+
+        fused.sort(
+            key=lambda item: (
+                -item[1],
+                -(item[2]),
+                -(item[3]),
+                item[0],
+            )
+        )
+
+        results = []
+        for (
+            index,
+            hybrid_score,
+            semantic_score,
+            bm25_score,
+            semantic_rank,
+            keyword_rank,
+        ) in fused[:top_k]:
+            result = self.chunks[index].copy()
+            result.update(
+                {
+                    # Keep the old field name for existing source displays.
+                    "score": float(semantic_score),
+                    "semantic_score": float(semantic_score),
+                    "bm25_score": float(bm25_score),
+                    "hybrid_score": float(hybrid_score),
+                    "semantic_rank": semantic_rank,
+                    "keyword_rank": keyword_rank,
+                }
+            )
+            results.append(result)
+        return results
+
