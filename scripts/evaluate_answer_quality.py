@@ -9,7 +9,18 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = PROJECT_ROOT / "tests" / "answer_eval_set.json"
 DEFAULT_RESULTS = PROJECT_ROOT / "tests" / "answer_eval_results.json"
-CITATION_PATTERN = re.compile(r"\[(S\d+)\]", re.IGNORECASE)
+CITATION_PATTERN = re.compile(r"\[\s*(S\d+(?:\s*,\s*S\d+)*)\s*\]", re.IGNORECASE)
+CITATION_ID_PATTERN = re.compile(r"S\d+", re.IGNORECASE)
+
+
+def extract_citation_ids(answer: str) -> list[str]:
+    """Return unique citation IDs from [S1] and grouped [S1, S2] references."""
+    found = (
+        source_id.upper()
+        for match in CITATION_PATTERN.finditer(answer)
+        for source_id in CITATION_ID_PATTERN.findall(match.group(1))
+    )
+    return list(dict.fromkeys(found))
 ABSTENTION_PATTERNS = (
     r"\binsufficient_evidence\b",
     r"could(?: not|n't) find sufficient information",
@@ -49,7 +60,7 @@ def evaluate_response(case: dict, response: dict) -> dict:
         for source in sources
         if isinstance(source, dict) and source.get("id")
     }
-    cited_ids = list(dict.fromkeys(item.upper() for item in CITATION_PATTERN.findall(answer)))
+    cited_ids = extract_citation_ids(answer)
     invalid_ids = [source_id for source_id in cited_ids if source_id not in source_map]
     citations_valid = bool(cited_ids) and not invalid_ids
 

@@ -1,0 +1,21 @@
+DocuMind Phase 10 — UI/UX Patch
+
+Contents
+- app.py: adds the four-workspace selector and declutters search settings.
+- README.md: documents the new workspace layout.
+- docs/UI_GUIDE.md: short interface walkthrough.
+- docs/PHASE10_UI_CHANGELOG.md: scope of this UI change.
+
+Apply
+1. From your DocuMind project root, back up app.py:
+   cp app.py app_phase9_backup.py
+2. Extract this ZIP into the project root, allowing app.py and README.md to be replaced.
+3. Keep your existing .env, data/documind_store, .venv, and requirements.lock.txt.
+4. Run:
+   python -m py_compile app.py
+   python -m unittest discover -s tests -v
+   streamlit run app.py
+
+The patch changes presentation/navigation only. It does not change document extraction,
+chunking, embeddings, hybrid retrieval, FAISS persistence, Gemini prompts, or citations.
+Streamlit 1.50+ is required (already enforced by requirements.txt).

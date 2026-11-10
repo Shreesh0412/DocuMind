@@ -27,3 +27,20 @@ The review covers `app.py`, `requirements.txt`, all modules under `src/`, the re
 The execution environment used for this review did not have Streamlit, FAISS, Sentence Transformers, or the Google GenAI SDK installed. The test suite was run with temporary test-only compatibility stubs for FAISS, Sentence Transformers, and the Gemini SDK; PyMuPDF and NumPy were available. Therefore, the test result validates application logic and mocked module interactions, but it does **not** replace running the full app with your actual installed dependencies. The temporary stubs are not included in this project bundle.
 
 Run the commands in `README.md` inside your Mac virtual environment and test the live Streamlit/Gemini workflow before treating the release as fully integration-tested.
+
+
+## Phase 9 hardening
+
+- Added environment-validated upload limits for PDF size, page count, batch file count, combined batch size, and generated chunk count.
+- Added Streamlit's server-side per-file upload cap and a read-only demo mode that disables uploads and document removal. Demo mode is explicitly not authentication or per-user isolation.
+- Added storage-load failure protection so uploads and document removal are paused when the saved library cannot be loaded.
+- Changed vector-store persistence to immutable, checksummed snapshots. The `CURRENT` pointer is atomically updated after a snapshot is fully written; previous valid generations are retained and used as recovery candidates.
+- Kept backward compatibility for the previous flat-file store layout; the next save migrates it to snapshots.
+- Added environment-backed configuration, console logging, major-version dependency bounds, a verified-environment lockfile script, deployment guidance, and tests for upload limits and snapshot recovery.
+
+## Phase 9 validation
+
+- Python compilation: passed.
+- 18 direct configuration, upload-validation, and PDF-processing tests: passed with the installed NumPy/PyMuPDF/dotenv packages.
+- Full offline suite: 117 tests passed using temporary test-only compatibility stubs for FAISS, Sentence Transformers, and the Google GenAI SDK, because those production packages were not installed in the audit container. These stubs are not included in the project. Run the suite in the project's real `.venv` to complete integration validation.
+- No live Gemini API calls were made.

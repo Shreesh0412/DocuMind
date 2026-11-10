@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from functools import lru_cache
@@ -8,6 +9,8 @@ from google import genai
 from google.genai import errors, types
 
 from src.citation_validator import validate_citations
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
@@ -79,6 +82,12 @@ def generate_with_retry(
             return response.text.strip()
         except errors.APIError as error:
             status_code = error.code
+            logger.warning(
+                "Gemini API request failed with status %s (attempt %s/%s).",
+                status_code,
+                attempt + 1,
+                MAX_ATTEMPTS,
+            )
             if status_code in (500, 502, 503, 504) and attempt < MAX_ATTEMPTS - 1:
                 time.sleep(2 ** (attempt + 1))
                 continue

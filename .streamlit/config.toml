@@ -1,0 +1,6 @@
+[server]
+# Streamlit rejects individual uploaded files larger than this before app logic.
+maxUploadSize = 20
+
+[browser]
+gatherUsageStats = false

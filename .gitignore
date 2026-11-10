@@ -6,5 +6,18 @@ __pycache__/
 !.env.example
 .streamlit/secrets.toml
 data/documind_store/
+logs/
+*.log
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
 .DS_Store
+
+# Local backups
+data/documind_store_backup/
+app_phase9_backup.py
+
+# Streamlit secrets
+.streamlit/secrets.toml

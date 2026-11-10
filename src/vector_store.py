@@ -1,13 +1,18 @@
+import hashlib
 import json
+import logging
 import math
 import os
 import re
+import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
 import faiss
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 class VectorStore:
     SCHEMA_VERSION = 1
@@ -156,34 +161,130 @@ class VectorStore:
         self._invalidate_bm25_cache()
         return True
 
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as file:
+            for block in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _fsync_path(path: Path) -> None:
+        """Best-effort flush of a completed file to the filesystem."""
+        try:
+            with open(path, "rb") as file:
+                os.fsync(file.fileno())
+        except OSError:
+            # Some mounted/network filesystems do not support fsync on readers.
+            logger.debug("Could not fsync %s.", path.name, exc_info=True)
+
+    @staticmethod
+    def _write_json(path: Path, payload: dict | list) -> None:
+        with open(path, "w", encoding="utf-8") as file:
+            json.dump(payload, file, ensure_ascii=False, indent=2)
+            file.flush()
+            os.fsync(file.fileno())
+
+    @staticmethod
+    def _write_current_pointer(directory: Path, generation_name: str) -> None:
+        temporary_pointer = directory / f".CURRENT.{uuid.uuid4().hex}.tmp"
+        try:
+            with open(temporary_pointer, "w", encoding="utf-8") as file:
+                file.write(generation_name + "\n")
+                file.flush()
+                os.fsync(file.fileno())
+            # The pointer is the only mutable file needed to publish a snapshot.
+            os.replace(temporary_pointer, directory / "CURRENT")
+        finally:
+            temporary_pointer.unlink(missing_ok=True)
+
+    @staticmethod
+    def _fsync_directory(path: Path) -> None:
+        """Best-effort flush of directory entries after atomic renames."""
+        descriptor = None
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+            os.fsync(descriptor)
+        except OSError:
+            logger.debug("Could not fsync directory %s.", path, exc_info=True)
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    @staticmethod
+    def _cleanup_old_snapshots(
+        snapshot_root: Path,
+        current_generation: str,
+        keep: int = 3,
+    ) -> None:
+        all_snapshots = [
+            path for path in snapshot_root.glob("snapshot-[0-9a-f]*")
+            if path.is_dir()
+        ]
+        complete_snapshots = sorted(
+            (path for path in all_snapshots if (path / "manifest.json").is_file()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        keep_names = {path.name for path in complete_snapshots[:keep]}
+        keep_names.add(current_generation)
+        for old_snapshot in all_snapshots:
+            if old_snapshot.name in keep_names:
+                continue
+            try:
+                for child in old_snapshot.iterdir():
+                    if child.is_file():
+                        child.unlink(missing_ok=True)
+                old_snapshot.rmdir()
+            except OSError:
+                logger.warning(
+                    "Could not remove an old vector-store snapshot: %s",
+                    old_snapshot.name,
+                )
+
     def save(self, directory: str | Path) -> None:
+        """Persist a complete immutable snapshot and atomically publish it.
+
+        Existing readers continue to see the previous complete snapshot until
+        the new generation is fully written and the ``CURRENT`` pointer swaps.
+        The previous generations are retained for recovery after corruption.
+        """
         self._validate_consistency()
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
+        snapshot_root = directory / "snapshots"
+        snapshot_root.mkdir(parents=True, exist_ok=True)
+        generation_name = f"snapshot-{uuid.uuid4().hex}"
+        generation_dir = snapshot_root / generation_name
+        generation_dir.mkdir()
+
         paths = {
-            "index": directory / "index.faiss",
-            "embeddings": directory / "embeddings.npy",
-            "chunks": directory / "chunks.json",
-            "documents": directory / "documents.json",
-            "manifest": directory / "manifest.json",
-        }
-        temporary = {
-            name: path.with_name(path.name + ".tmp")
-            for name, path in paths.items()
+            "index": generation_dir / "index.faiss",
+            "embeddings": generation_dir / "embeddings.npy",
+            "chunks": generation_dir / "chunks.json",
+            "documents": generation_dir / "documents.json",
+            "manifest": generation_dir / "manifest.json",
         }
 
         try:
             if self.index is not None:
-                faiss.write_index(self.index, str(temporary["index"]))
+                faiss.write_index(self.index, str(paths["index"]))
+                self._fsync_path(paths["index"])
 
-            with open(temporary["embeddings"], "wb") as file:
+            with open(paths["embeddings"], "wb") as file:
                 np.save(file, self.embeddings, allow_pickle=False)
-            with open(temporary["chunks"], "w", encoding="utf-8") as file:
-                json.dump(self.chunks, file, ensure_ascii=False, indent=2)
-            with open(temporary["documents"], "w", encoding="utf-8") as file:
-                json.dump(self.documents, file, ensure_ascii=False, indent=2)
+                file.flush()
+                os.fsync(file.fileno())
+            self._write_json(paths["chunks"], self.chunks)
+            self._write_json(paths["documents"], self.documents)
 
+            checksummed_files = {
+                name: self._sha256_file(path)
+                for name, path in paths.items()
+                if name != "manifest" and path.exists()
+            }
             manifest = {
                 "schema_version": self.SCHEMA_VERSION,
                 "embedding_model": self.embedding_model,
@@ -192,29 +293,45 @@ class VectorStore:
                 "document_count": len(self.documents),
                 "dimension": int(self.embeddings.shape[1]) if self.count() else None,
                 "saved_at": datetime.now(timezone.utc).isoformat(),
+                "generation": generation_name,
+                "files_sha256": checksummed_files,
             }
-            with open(temporary["manifest"], "w", encoding="utf-8") as file:
-                json.dump(manifest, file, indent=2)
+            self._write_json(paths["manifest"], manifest)
 
-            if self.index is not None:
-                os.replace(temporary["index"], paths["index"])
-            else:
-                paths["index"].unlink(missing_ok=True)
-            for name in ("embeddings", "chunks", "documents", "manifest"):
-                os.replace(temporary[name], paths[name])
-        finally:
-            for path in temporary.values():
-                path.unlink(missing_ok=True)
+            # Publish only after all snapshot data and metadata are complete.
+            self._fsync_directory(generation_dir)
+            self._fsync_directory(snapshot_root)
+            self._write_current_pointer(directory, generation_name)
+            self._fsync_directory(directory)
+            self._cleanup_old_snapshots(
+                snapshot_root,
+                current_generation=generation_name,
+                keep=3,
+            )
+        except Exception:
+            # An unpublished generation is safe to remove; CURRENT still points
+            # to the previous complete snapshot.
+            try:
+                for child in generation_dir.iterdir():
+                    if child.is_file():
+                        child.unlink(missing_ok=True)
+                generation_dir.rmdir()
+            except OSError:
+                logger.warning(
+                    "Could not clean up incomplete snapshot %s.",
+                    generation_name,
+                )
+            raise
 
-    def load(self, directory: str | Path) -> bool:
-        directory = Path(directory)
+    def _read_snapshot(self, directory: Path) -> "VectorStore":
         manifest_path = directory / "manifest.json"
         if not manifest_path.exists():
-            return False
+            raise FileNotFoundError("Saved vector-store manifest is missing.")
 
         with open(manifest_path, "r", encoding="utf-8") as file:
             manifest = json.load(file)
-
+        if not isinstance(manifest, dict):
+            raise ValueError("Saved vector-store manifest is invalid.")
         if manifest.get("schema_version") != self.SCHEMA_VERSION:
             raise ValueError("Unsupported vector store version.")
         if manifest.get("embedding_model") != self.embedding_model:
@@ -222,6 +339,32 @@ class VectorStore:
                 "The saved store uses a different embedding model. "
                 "Rebuild the document index using the current model."
             )
+        recorded_generation = manifest.get("generation")
+        if recorded_generation and directory.name.startswith("snapshot-"):
+            if recorded_generation != directory.name:
+                raise ValueError("Snapshot generation does not match its manifest.")
+
+        file_names = {
+            "index": "index.faiss",
+            "embeddings": "embeddings.npy",
+            "chunks": "chunks.json",
+            "documents": "documents.json",
+        }
+        checksums = manifest.get("files_sha256")
+        if checksums is not None:
+            if not isinstance(checksums, dict):
+                raise ValueError("Saved vector-store checksums are invalid.")
+            for key, filename in file_names.items():
+                file_path = directory / filename
+                if key == "index" and not file_path.exists() and int(
+                    manifest.get("vector_count", -1)
+                ) == 0:
+                    continue
+                expected_hash = checksums.get(key)
+                if not expected_hash or not file_path.exists():
+                    raise ValueError(f"Saved {filename} is missing its checksum or file.")
+                if self._sha256_file(file_path) != expected_hash:
+                    raise ValueError(f"Saved {filename} failed its integrity check.")
 
         with open(directory / "chunks.json", "r", encoding="utf-8") as file:
             loaded_chunks = json.load(file)
@@ -229,6 +372,8 @@ class VectorStore:
             loaded_documents = json.load(file)
         loaded_embeddings = np.load(directory / "embeddings.npy", allow_pickle=False)
 
+        if not isinstance(loaded_chunks, list) or not isinstance(loaded_documents, dict):
+            raise ValueError("Saved chunk or document metadata has an invalid format.")
         expected_vectors = int(manifest.get("vector_count", -1))
         if expected_vectors < 0:
             raise ValueError("The saved manifest has an invalid vector count.")
@@ -258,13 +403,106 @@ class VectorStore:
         elif loaded_documents:
             raise ValueError("Documents exist but the saved index is empty.")
 
-        self.index = loaded_index
-        self.chunks = loaded_chunks
-        self.embeddings = np.ascontiguousarray(loaded_embeddings, dtype=np.float32)
-        self.documents = loaded_documents
-        self._invalidate_bm25_cache()
-        self._validate_consistency()
-        return True
+        document_ids = set(loaded_documents)
+        chunk_counts: Counter = Counter()
+        for chunk in loaded_chunks:
+            document_id = chunk.get("document_id")
+            if document_id not in document_ids:
+                raise ValueError("A saved chunk refers to an unknown document.")
+            chunk_counts[document_id] += 1
+        for document_id, document in loaded_documents.items():
+            if not isinstance(document, dict):
+                raise ValueError("Saved document metadata has an invalid format.")
+            if int(document.get("chunk_count", -1)) != chunk_counts[document_id]:
+                raise ValueError("Document chunk metadata does not match saved chunks.")
+
+        candidate = VectorStore(self.embedding_model)
+        candidate.index = loaded_index
+        candidate.chunks = loaded_chunks
+        candidate.embeddings = np.ascontiguousarray(loaded_embeddings, dtype=np.float32)
+        candidate.documents = loaded_documents
+        candidate._invalidate_bm25_cache()
+        candidate._validate_consistency()
+        return candidate
+
+    def load(self, directory: str | Path) -> bool:
+        """Load the current snapshot, recovering from an earlier valid one."""
+        directory = Path(directory)
+        snapshot_root = directory / "snapshots"
+        candidates: list[Path] = []
+        current_path = directory / "CURRENT"
+
+        if current_path.exists():
+            current_name = current_path.read_text(encoding="utf-8").strip()
+            if re.fullmatch(r"snapshot-[0-9a-f]{32}", current_name):
+                current_snapshot = snapshot_root / current_name
+                if current_snapshot.is_dir():
+                    candidates.append(current_snapshot)
+            else:
+                logger.warning("Vector-store CURRENT pointer is invalid; trying recovery.")
+
+        if snapshot_root.exists():
+            for snapshot in sorted(
+                (
+                    path for path in snapshot_root.glob("snapshot-[0-9a-f]*")
+                    if path.is_dir()
+                ),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            ):
+                if snapshot not in candidates:
+                    candidates.append(snapshot)
+
+        failures: list[Exception] = []
+        for candidate_path in candidates:
+            try:
+                candidate = self._read_snapshot(candidate_path)
+                self.index = candidate.index
+                self.chunks = candidate.chunks
+                self.embeddings = candidate.embeddings
+                self.documents = candidate.documents
+                self._invalidate_bm25_cache()
+                if not current_path.exists() or current_path.read_text(
+                    encoding="utf-8"
+                ).strip() != candidate_path.name:
+                    try:
+                        self._write_current_pointer(directory, candidate_path.name)
+                    except OSError:
+                        logger.warning("Could not repair vector-store CURRENT pointer.")
+                if failures:
+                    logger.warning(
+                        "Recovered vector store from snapshot %s after a newer snapshot failed.",
+                        candidate_path.name,
+                    )
+                return True
+            except Exception as error:
+                failures.append(error)
+                logger.warning(
+                    "Vector-store snapshot %s could not be loaded: %s",
+                    candidate_path.name,
+                    type(error).__name__,
+                )
+
+        # Backward compatibility: load stores created before snapshot persistence.
+        if (directory / "manifest.json").exists():
+            try:
+                candidate = self._read_snapshot(directory)
+                self.index = candidate.index
+                self.chunks = candidate.chunks
+                self.embeddings = candidate.embeddings
+                self.documents = candidate.documents
+                self._invalidate_bm25_cache()
+                logger.info("Loaded legacy vector-store layout; next save migrates it to snapshots.")
+                return True
+            except Exception as error:
+                failures.append(error)
+
+        if failures:
+            raise ValueError(
+                "No valid vector-store snapshot could be loaded. "
+                "The previous snapshot files were preserved for recovery."
+            ) from failures[-1]
+        return False
 
     def search(
         self,

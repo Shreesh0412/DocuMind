@@ -41,5 +41,17 @@ class TestPDFProcessor(unittest.TestCase):
         self.assertEqual(len(pages), 2)
         self.assertEqual(pages[0]["text"], "")
 
+    def test_rejects_pdf_over_page_limit(self):
+        with self.assertRaisesRegex(ValueError, "limit is 1 pages"):
+            extract_pdf_pages(
+                self.make_pdf(["First page", "Second page"]),
+                "sample.pdf",
+                max_pages=1,
+            )
+
+    def test_rejects_non_pdf_filename(self):
+        with self.assertRaisesRegex(ValueError, "Only PDF"):
+            extract_pdf_pages(self.make_pdf(["content"]), "notes.txt")
+
 if __name__ == "__main__":
     unittest.main()
