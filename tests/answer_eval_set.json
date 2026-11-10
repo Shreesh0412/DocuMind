@@ -1,0 +1,533 @@
+{
+  "description": "DocuMind Phase 8 answer-quality set grounded in BuildYourOwnProjectVITyarthi.pdf and Report.pdf. Expected pages use the PDF page numbering.",
+  "cases": [
+    {
+      "id": "BYOP_A01",
+      "question": "What is the main objective of the Build Your Own Project assignment?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            1,
+            2
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "identify a meaningful problem",
+          "any_of": [
+            "meaningful problem",
+            "identify a problem"
+          ]
+        },
+        {
+          "label": "design a technical solution",
+          "any_of": [
+            "technical solution",
+            "design a solution"
+          ]
+        },
+        {
+          "label": "implement using course concepts or tools",
+          "any_of": [
+            "implement",
+            "implementation"
+          ]
+        },
+        {
+          "label": "documentation and evaluation",
+          "any_of": [
+            "documentation",
+            "evaluation",
+            "document and evaluate"
+          ]
+        }
+      ],
+      "review_note": "Check that the answer covers the problem, solution, implementation, and demonstration/documentation aspects."
+    },
+    {
+      "id": "BYOP_A02",
+      "question": "What minimum functional and non-functional requirements must a project satisfy?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            2,
+            3
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "three major functional modules",
+          "any_of": [
+            "three major functional modules",
+            "3 major functional modules",
+            "at least three modules",
+            "minimum three modules"
+          ]
+        },
+        {
+          "label": "clear input/output structure",
+          "any_of": [
+            "input/output",
+            "input and output"
+          ]
+        },
+        {
+          "label": "logical workflow",
+          "any_of": [
+            "logical workflow",
+            "workflow"
+          ]
+        },
+        {
+          "label": "at least four non-functional requirements",
+          "any_of": [
+            "at least four",
+            "minimum four",
+            "4 non-functional",
+            "four non-functional"
+          ]
+        }
+      ],
+      "review_note": "The answer should distinguish the minimum functional structure from the minimum non-functional requirement count."
+    },
+    {
+      "id": "BYOP_A03",
+      "question": "What additional technical expectations apply when a project involves coding or implementation?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            3
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "five to ten meaningful modules/classes/files",
+          "any_of": [
+            "5-10",
+            "5 to 10",
+            "five to ten",
+            "5–10"
+          ]
+        },
+        {
+          "label": "proper folder or package structure",
+          "any_of": [
+            "folder structure",
+            "package structure",
+            "folder or package"
+          ]
+        },
+        {
+          "label": "testing",
+          "any_of": [
+            "testing",
+            "unit tests",
+            "validation tests"
+          ]
+        }
+      ],
+      "review_note": "Do not confuse the 5–10 modules/classes/files expectation with the separate three functional modules requirement."
+    },
+    {
+      "id": "BYOP_A04",
+      "question": "Which design artefacts are required, and what extra items are requested for computation-heavy or machine-learning projects?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            4
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "problem statement",
+          "any_of": [
+            "problem statement"
+          ]
+        },
+        {
+          "label": "objectives",
+          "any_of": [
+            "objectives",
+            "objective"
+          ]
+        },
+        {
+          "label": "functional requirements",
+          "any_of": [
+            "functional requirements"
+          ]
+        },
+        {
+          "label": "non-functional requirements",
+          "any_of": [
+            "non-functional requirements",
+            "nonfunctional requirements"
+          ]
+        },
+        {
+          "label": "system architecture diagram",
+          "any_of": [
+            "system architecture diagram",
+            "architecture diagram"
+          ]
+        },
+        {
+          "label": "process flow or workflow diagram",
+          "any_of": [
+            "process flow",
+            "workflow diagram"
+          ]
+        },
+        {
+          "label": "UML diagrams",
+          "any_of": [
+            "uml diagrams",
+            "use case diagram",
+            "class diagram",
+            "sequence diagram"
+          ]
+        },
+        {
+          "label": "dataset description",
+          "any_of": [
+            "dataset description",
+            "dataset"
+          ]
+        },
+        {
+          "label": "model selection rationale",
+          "any_of": [
+            "model selection rationale"
+          ]
+        },
+        {
+          "label": "evaluation methodology",
+          "any_of": [
+            "evaluation methodology"
+          ]
+        }
+      ],
+      "review_note": "Mention database/storage artefacts when applicable; dataset, model rationale, and evaluation methodology are the additional ML/computation-heavy items."
+    },
+    {
+      "id": "BYOP_A05",
+      "question": "What should the GitHub README.md and statement.md files contain?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            5
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "README project title",
+          "any_of": [
+            "project title"
+          ]
+        },
+        {
+          "label": "README overview",
+          "any_of": [
+            "overview"
+          ]
+        },
+        {
+          "label": "README features",
+          "any_of": [
+            "features"
+          ]
+        },
+        {
+          "label": "README technologies or tools",
+          "any_of": [
+            "technologies",
+            "tools used"
+          ]
+        },
+        {
+          "label": "README install/run instructions",
+          "any_of": [
+            "install",
+            "run"
+          ]
+        },
+        {
+          "label": "README testing instructions",
+          "any_of": [
+            "testing"
+          ]
+        },
+        {
+          "label": "statement problem statement",
+          "any_of": [
+            "problem statement"
+          ]
+        },
+        {
+          "label": "statement scope",
+          "any_of": [
+            "scope"
+          ]
+        },
+        {
+          "label": "statement target users",
+          "any_of": [
+            "target users"
+          ]
+        },
+        {
+          "label": "statement high-level features",
+          "any_of": [
+            "high-level features"
+          ]
+        }
+      ],
+      "review_note": "Keep the README requirements separate from the shorter statement.md requirements."
+    },
+    {
+      "id": "EMS_A06",
+      "question": "What technologies and interface were used to build the Employee Management System?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "Report.pdf",
+          "pages": [
+            2,
+            6
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "Java 17",
+          "any_of": [
+            "java 17"
+          ]
+        },
+        {
+          "label": "JDBC",
+          "any_of": [
+            "jdbc"
+          ]
+        },
+        {
+          "label": "SQLite",
+          "any_of": [
+            "sqlite"
+          ]
+        },
+        {
+          "label": "command-line interface",
+          "any_of": [
+            "command-line interface",
+            "command line interface",
+            "cli"
+          ]
+        }
+      ],
+      "review_note": "Do not substitute a graphical interface; the report describes a CLI."
+    },
+    {
+      "id": "EMS_A07",
+      "question": "What employee, department, and salary-management operations can the system perform?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "Report.pdf",
+          "pages": [
+            4
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "employee add/view/update/delete operations",
+          "any_of": [
+            "add",
+            "view",
+            "update",
+            "delete"
+          ]
+        },
+        {
+          "label": "employee search by ID or name",
+          "any_of": [
+            "search by employee id",
+            "search by id",
+            "search by name",
+            "search employees by",
+            "search for an employee by employee id",
+            "search for employees by name"
+          ]
+        },
+        {
+          "label": "department management",
+          "any_of": [
+            "add a new department",
+            "view all departments",
+            "find a department",
+            "department management"
+          ]
+        },
+        {
+          "label": "average salary",
+          "any_of": [
+            "average salary"
+          ]
+        },
+        {
+          "label": "highest and lowest salary",
+          "any_of": [
+            "highest salary"
+          ]
+        },
+        {
+          "label": "lowest salary",
+          "any_of": [
+            "lowest salary"
+          ]
+        },
+        {
+          "label": "department-wise average salary",
+          "any_of": [
+            "department-wise average",
+            "average salary by department"
+          ]
+        }
+      ],
+      "review_note": "Check that the answer describes employee operations, department operations, and salary analysis, not just one module."
+    },
+    {
+      "id": "EMS_A08",
+      "question": "How are employees related to departments in the database, and what input checks does the application perform?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "Report.pdf",
+          "pages": [
+            5,
+            11
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "department primary key",
+          "any_of": [
+            "primary key"
+          ]
+        },
+        {
+          "label": "employee foreign key",
+          "any_of": [
+            "foreign key"
+          ]
+        },
+        {
+          "label": "one-to-many relationship",
+          "any_of": [
+            "one-to-many",
+            "one to many"
+          ]
+        },
+        {
+          "label": "empty required fields are checked",
+          "any_of": [
+            "empty required fields",
+            "required fields"
+          ]
+        },
+        {
+          "label": "negative salary is rejected",
+          "any_of": [
+            "non-negative salary",
+            "nonnegative salary",
+            "negative salary"
+          ]
+        },
+        {
+          "label": "department IDs validated",
+          "any_of": [
+            "department id"
+          ]
+        },
+        {
+          "label": "duplicate employee IDs prevented",
+          "any_of": [
+            "duplicate employee"
+          ]
+        }
+      ],
+      "review_note": "The captured response cites S1 (Report.pdf page 11) and S4 (Report.pdf page 5). It also contains [S2] citations, but no S2 entry appears in the displayed source register; treat this as a citation-ID mismatch."
+    },
+    {
+      "id": "CROSS_A09",
+      "question": "Compare the statement.md requirements in the Build Your Own Project guidelines with the Employee Management System report. Which required elements are represented in the report?",
+      "answerable": true,
+      "expected_evidence": [
+        {
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "pages": [
+            5
+          ]
+        },
+        {
+          "source": "Report.pdf",
+          "pages": [
+            2,
+            3,
+            4
+          ]
+        }
+      ],
+      "required_concepts": [
+        {
+          "label": "problem statement requirement appears in the report",
+          "any_of": [
+            "problem statement"
+          ]
+        },
+        {
+          "label": "high-level project features appear in the report",
+          "any_of": [
+            "features",
+            "functional requirements",
+            "employee management"
+          ]
+        }
+      ],
+      "review_note": "Cite both PDFs. The report does not explicitly identify target users as a separate statement.md item; do not invent them."
+    },
+    {
+      "id": "EMS_NA10",
+      "question": "How many employee records were stored in the SQLite database when the report was submitted?",
+      "answerable": false,
+      "expected_evidence": [],
+      "required_concepts": [],
+      "review_note": "The report describes the database schema and operations but does not give a stored employee count. DocuMind should abstain."
+    },
+    {
+      "id": "EMS_NA11",
+      "question": "Which named real-world organization had deployed this Employee Management System in production?",
+      "answerable": false,
+      "expected_evidence": [],
+      "required_concepts": [],
+      "review_note": "The report describes a system for an organization in general but does not name a deployment customer or production organization. DocuMind should abstain."
+    }
+  ]
+}

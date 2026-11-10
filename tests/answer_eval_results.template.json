@@ -1,0 +1,16 @@
+{
+  "description": "Fill each answer and sources array using DocuMind's displayed answer and View sources panel. After manually checking the passages, set the review fields to true or false.",
+  "responses": [
+    {"id": "BYOP_A01", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "BYOP_A02", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "BYOP_A03", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "BYOP_A04", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "BYOP_A05", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "EMS_A06", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "EMS_A07", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "EMS_A08", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "CROSS_A09", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "EMS_NA10", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}},
+    {"id": "EMS_NA11", "answer": "", "sources": [], "review": {"answer_supported": null, "citations_support_claims": null}}
+  ]
+}

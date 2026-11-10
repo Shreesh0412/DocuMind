@@ -1,0 +1,185 @@
+{
+  "description": "Phase 8 merged responses. Captures BYOP_A01-A05, EMS_A06-A08, and EMS_NA10. CROSS_A09 is blank because Gemini hit its output-token limit; EMS_NA11 has not yet been captured. EMS_A08 has citation ID S2 in the answer but the displayed source register includes only S1 and S4.",
+  "responses": [
+    {
+      "id": "BYOP_A01",
+      "answer": "The main objective of the Build Your Own Project assignment is to allow students to apply the subject concepts in a real-world context by [S1]:\n\n- Identifying a meaningful problem [S1]\n- Designing a technical solution [S1]",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "page": 1,
+          "text": "VITyarthi - Build Your Own Project\nGeneral Project Instructions & Submission Guidelines\nAs part of the flipped course evaluation, each student must build their own original project, aligned with the concepts covered in the subject syllabus. Instead of a fixed project, students have the freedom to propose, design, and build a project of their choice, provided it meets the academic and technical expectations.\n1. Project Objective\nThe goal of this project is to allow students to apply the subject concepts in a real-world context by: Identifying a meaningful problem; Designing a technical solution."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "BYOP_A02",
+      "answer": "Based on the provided document, a project must satisfy the following minimum requirements:\n\nFunctional Requirements\nYour project must include at least [S1]:\n\n- Three major functional modules [S1]\n- A clear input/output structure [S1]\n- A logical workflow describing how the user interacts with the system [S1]\n\nNon-Functional Requirements\nYou must specify at least four (4) non-functional requirements (such as performance, security, and usability) [S1].",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "page": 2,
+          "text": "Your project must include:\n2.1 Functional Requirements. These are the specific features or capabilities your project provides. Your project must include at least: Three major functional modules; Clear input/output structure; A logical workflow of how the user interacts with the system. Examples include user management, data input and processing, reporting or analytics, CRUD operations, prediction or classification for ML subjects, and simulation or visualization for relevant subjects.\n2.2 Non-Functional Requirements. You must specify at least four (4) non-functional requirements such as performance, security, usability."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "BYOP_A03",
+      "answer": "When a project involves coding or implementation, the additional technical expectations include:\n\n- Modules/Classes/Files: A minimum of 5–10 meaningful modules, classes, or files [S1].\n- Project Structure: A proper folder or package structure [S1].\n- Testing: Testing wherever applicable, such as unit tests or validation tests [S1].",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "page": 3,
+          "text": "Technical Expectations: Depending on the subject, include proper architectural design; correct application of subject concepts (algorithms, data structures, models, patterns, frameworks, tools, etc.); modular and clean implementation; appropriate documentation and comments; validation and error handling; version control usage (Git). If your subject involves coding or implementation: Minimum 5–10 meaningful modules/classes/files; proper folder or package structure; testing wherever applicable (unit tests or validation tests)."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "BYOP_A04",
+      "answer": "Based on the provided document excerpts, the design and documentation requirements are [S1]:\n\nRequired Design Artefacts\n- Problem Statement\n- Objectives\n- Functional Requirements\n- Non-functional Requirements\n- System Architecture Diagram\n- Process Flow or Workflow Diagram\n- UML Diagrams (as applicable): Use Case Diagram, Class Diagram / Component Diagram, Sequence Diagram\n- Database/Storage Design (if applicable): ER Diagram, Schema Design\n\nExtra Items for Computation-Heavy or ML-Related Projects\n- Dataset description\n- Model selection rationale\n- Evaluation methodology",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "page": 4,
+          "text": "Design & Documentation Requirements. Your project must include the following design artefacts: Problem Statement; Objectives; Functional Requirements; Non-functional Requirements; System Architecture Diagram; Process Flow or Workflow Diagram; UML Diagrams (as applicable): Use Case Diagram, Class Diagram / Component Diagram, Sequence Diagram; Database/Storage Design (if applicable): ER Diagram, Schema Design. If it is a computation-heavy or ML-related course, include: Dataset description; Model selection rationale; Evaluation methodology."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "BYOP_A05",
+      "answer": "README.md\nThe README.md file must clearly include:\n- Project title [S1]\n- Overview of the project [S1]\n- Features [S1]\n- Technologies/tools used [S1]\n- Steps to install & run the project [S1]\n- Instructions for testing [S1]\n- Screenshots (optional but recommended) [S1]\n\nstatement.md\nThe statement.md file must contain:\n- Problem statement [S1]\n- Scope of the project [S1]\n- Target users [S1]\n- High-level features [S1]",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "BuildYourOwnProjectVITyarthi.pdf",
+          "page": 5,
+          "text": "GitHub Repository Requirements. README.md must clearly include: Project title; Overview of the project; Features; Technologies/tools used; Steps to install & run the project; Instructions for testing; Screenshots (optional but recommended). statement.md must contain: Problem statement; Scope of the project; Target users; High-level features. Source code/project files should be organized, modular, and complete."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "EMS_A06",
+      "answer": "Based on the provided document excerpts, the technologies and interface used to build the Employee Management System are:\n\nTechnologies\n- Programming Language & Database Tools: Developed using Java 17, Java Database Connectivity (JDBC), and SQLite [S2].\n- Database & Query Languages: SQL and persistent SQL database operations [S1], [S2], [S4].\n- Core Concepts & Techniques: Object-oriented programming, input validation, and exception handling [S1], [S2].\n- Background/Predecessor: The system was developed from an earlier Python program that utilized Python dictionaries and pickle-based file storage [S4].\n\nInterface\n- Type: A simple, menu-driven command-line interface (CLI) [S2], [S3].",
+      "sources": [
+        {
+          "id": "S2",
+          "source": "Report.pdf",
+          "page": 2,
+          "text": "The Employee Management System is a command-line software project designed to simplify management of employee information. Developed using Java 17, JDBC, and SQLite, the project combines object-oriented programming, SQL database operations, input validation, exception handling, and a simple command-line interface."
+        },
+        {
+          "id": "S1",
+          "source": "Report.pdf",
+          "page": 16,
+          "text": "The Employee Management System provides a simple, efficient way to manage employee records, departments, and salary information. The project demonstrates Java, JDBC, SQL, object-oriented programming, input validation, and exception handling."
+        },
+        {
+          "id": "S4",
+          "source": "Report.pdf",
+          "page": 2,
+          "text": "The project was developed from an earlier smaller Python employee-record program. The original approach stored employee information using a Python dictionary and pickle-based file storage; the present system extends the same basic idea with Java classes, persistent SQL storage, CRUD operations, department management, and salary analysis."
+        },
+        {
+          "id": "S3",
+          "source": "Report.pdf",
+          "page": 4,
+          "text": "System Operation: Provide a menu-driven command-line interface; validate required inputs and numeric values; continue operating until the user selects Exit; display clear success and error messages."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "EMS_A07",
+      "answer": "Based on the provided excerpts, the system can perform the following employee, department, and salary-management operations [S1]:\n\n1. Employee Management Operations\n- Add a new employee with required personal and job details [S1].\n- View all employee records stored in the database [S1].\n- Search for an employee by Employee ID [S1].\n- Search for employees by name [S1].\n- Update existing employee details [S1].\n- Delete an employee after confirmation [S1].\n- View employees belonging to a selected department [S1].\n\n2. Department Management Operations\n- Add a new department with a department name and location [S1].\n- View all departments [S1].\n- Find a department using its ID [S1].\n- Display employees assigned to a selected department [S1].\n\n3. Salary Management Operations\n- Display the average salary of all employees [S1].\n- Find the highest salary [S1].\n- Find the lowest salary [S1].\n- Display department-wise average salary [S1].",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "Report.pdf",
+          "page": 4,
+          "text": "Functional Requirements\n1. Employee Management: Add a new employee with required personal and job details; view all employee records stored in the database; search an employee by Employee ID; search employees by name; update existing employee details; delete an employee after confirmation; view employees belonging to a selected department.\n2. Department Management: Add a new department with a department name and location; view all departments; find a department using its ID; display employees assigned to a selected department.\n3. Salary Management: Display the average salary of all employees; find the highest salary; find the lowest salary; display department-wise average salary.\n4. System Operation: Provide a menu-driven command-line interface; validate required inputs and numeric values; continue operating until the user selects Exit; display clear success and error messages."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": true
+      }
+    },
+    {
+      "id": "EMS_A08",
+      "answer": "Based on the provided documents, here are the details regarding the database relationship and the application's input checks:\n\nDatabase Relationship between Employees and Departments\n- Key Structure: The departments table uses dept_id as its primary key, which is stored as a foreign key in the employees table [S1, S2].\n- Relationship Type: This creates a one-to-many relationship between departments and employees [S1, S2].\n\nInput Checks Performed by the Application\n- Checking for empty required fields [S1].\n- Validating non-negative salary values [S1].\n- Ensuring valid numeric department IDs [S1].\n- Checking for duplicate employee IDs [S1, S4].\n- Checking for missing departments [S1].\n- Preventing failure from invalid menu choices or invalid numeric input [S4].",
+      "sources": [
+        {
+          "id": "S1",
+          "source": "Report.pdf",
+          "page": 11,
+          "text": "Database Implementation: The employees table stores employee details and uses emp_id as its primary key. The departments table uses an auto-incremented dept_id primary key. The employees table contains dept_id as a foreign key, establishing a one-to-many relationship between departments and employees. Validation & Error Handling: The application checks for empty required fields, non-negative salary values, valid numeric department IDs, duplicate employee IDs, and missing departments. SQLExceptions are caught and reported with simple messages."
+        },
+        {
+          "id": "S4",
+          "source": "Report.pdf",
+          "page": 5,
+          "text": "Reliability & Robustness: Prevent application failure caused by invalid menu choices or invalid numeric input. Handle SQL exceptions and display understandable error messages. Prevent duplicate employee IDs using database constraints and application checks."
+        }
+      ],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": false
+      }
+    },
+    {
+      "id": "CROSS_A09",
+      "answer": "",
+      "sources": [],
+      "review": {
+        "answer_supported": null,
+        "citations_support_claims": null
+      },
+      "capture_note": "DocuMind returned an output-token-limit error before completing the response; retry required."
+    },
+    {
+      "id": "EMS_NA10",
+      "answer": "I couldn't find sufficient information in your uploaded documents to answer this question reliably.\n\nNo validated source references were returned.",
+      "sources": [],
+      "review": {
+        "answer_supported": true,
+        "citations_support_claims": null
+      }
+    },
+    {
+      "id": "EMS_NA11",
+      "answer": "",
+      "sources": [],
+      "review": {
+        "answer_supported": null,
+        "citations_support_claims": null
+      }
+    }
+  ]
+}
