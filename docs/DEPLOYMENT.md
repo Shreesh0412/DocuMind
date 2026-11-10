@@ -9,8 +9,12 @@ user authentication or per-user document isolation. For a public portfolio demo:
 2. Set `DOCUMIND_DEMO_MODE=true` in the hosting provider's environment/secrets.
 3. Keep the demo library read-only. Demo mode disables document uploads and
    removal in the UI and also blocks upload processing in the application layer.
-4. Set `GEMINI_API_KEY` in the hosting provider's secret manager. Do not commit
-   `.env`, API keys, private PDFs, or `data/documind_store/`.
+4. Set `GEMINI_API_KEY` in the hosting provider's secret manager. For Streamlit
+   Community Cloud, add it in the app's **Advanced settings → Secrets** using
+   TOML format (for example, `GEMINI_API_KEY = "..."`). DocuMind reads both
+   process environment variables and `st.secrets`, with environment variables
+   taking precedence. Do not commit `.env`, API keys, private PDFs, or
+   `data/documind_store/`.
 5. Confirm that the deployed instance contains only the sample documents you
    intend every visitor to be able to query.
 
@@ -68,7 +72,18 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Set secrets in the hosting provider rather than uploading `.env`. Launch with
+Set secrets in the hosting provider rather than uploading `.env`. In
+Streamlit Community Cloud, use the app's **Advanced settings → Secrets** field,
+for example:
+
+```toml
+GEMINI_API_KEY = "your-real-api-key"
+GEMINI_MODEL = "gemini-3.6-flash"
+DOCUMIND_DEMO_MODE = "true"
+```
+
+DocuMind reads these values through `st.secrets` on Community Cloud and continues
+to read `.env` / process environment variables locally. Launch with
 `streamlit run app.py` from the repository root.
 
 ## Reproducible dependency lock

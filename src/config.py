@@ -12,8 +12,32 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 
+def get_config_value(name: str, default: str | None = None) -> str | None:
+    """Read a setting from environment variables or Streamlit Cloud secrets.
+
+    Environment variables take precedence, preserving local ``.env`` behaviour.
+    Streamlit Community Cloud secrets are read through ``st.secrets``; they are
+    not assumed to be exported as process environment variables.
+    """
+    value = os.getenv(name)
+    if value is not None:
+        return value
+
+    try:
+        import streamlit as st
+        return st.secrets.get(name, default)
+    except ModuleNotFoundError:
+        # This also keeps the configuration module usable in lightweight tests.
+        return default
+    except Exception as error:
+        # Streamlit raises this when no secrets.toml / cloud secrets are configured.
+        if error.__class__.__name__ == "StreamlitSecretNotFoundError":
+            return default
+        raise
+
+
 def _read_int(name: str, default: int, minimum: int = 1) -> int:
-    raw_value = os.getenv(name, str(default)).strip()
+    raw_value = str(get_config_value(name, str(default))).strip()
     try:
         value = int(raw_value)
     except (TypeError, ValueError) as error:
@@ -24,7 +48,7 @@ def _read_int(name: str, default: int, minimum: int = 1) -> int:
 
 
 def _read_bool(name: str, default: bool = False) -> bool:
-    raw_value = os.getenv(name)
+    raw_value = get_config_value(name)
     if raw_value is None:
         return default
     normalized = raw_value.strip().casefold()
@@ -59,7 +83,7 @@ class Settings:
 def get_settings() -> Settings:
     """Read settings from the environment, validating unsafe values early."""
 
-    log_level = os.getenv("DOCUMIND_LOG_LEVEL", "INFO").strip().upper()
+    log_level = str(get_config_value("DOCUMIND_LOG_LEVEL", "INFO")).strip().upper()
     if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         raise ValueError(
             "DOCUMIND_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL."

@@ -9,13 +9,14 @@ from google import genai
 from google.genai import errors, types
 
 from src.citation_validator import validate_citations
+from src.config import get_config_value
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+MODEL = str(get_config_value("GEMINI_MODEL", "gemini-3.6-flash")).strip()
 MAX_ATTEMPTS = 4
 
 SYSTEM_INSTRUCTION = """
@@ -33,9 +34,12 @@ Answer using the document excerpts supplied by the application.
 
 @lru_cache(maxsize=1)
 def get_gemini_client():
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = str(get_config_value("GEMINI_API_KEY", "") or "").strip()
     if not api_key:
-        raise RuntimeError("Gemini API key not found. Check your .env file.")
+        raise RuntimeError(
+            "Gemini API key not found. Set GEMINI_API_KEY in your local .env "
+            "file or in Streamlit Community Cloud app secrets."
+        )
     return genai.Client(api_key=api_key)
 
 def generate_with_retry(
